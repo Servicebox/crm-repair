@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
     const isFirstUser = !existingCompany
 
     const token = crypto.randomBytes(32).toString('hex')
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     const user = await User.create({
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
       password: data.password,
       role: isFirstUser ? 'owner' : 'master',
       isEmailVerified: isFirstUser,
-      emailVerificationToken: isFirstUser ? undefined : token,
+      emailVerificationToken: isFirstUser ? undefined : tokenHash,
       emailVerificationExpires: isFirstUser ? undefined : expires,
     })
 
@@ -53,12 +54,20 @@ export async function POST(req: NextRequest) {
       try {
         await sendVerificationEmail(data.email, token, data.name)
       } catch (emailError) {
-        console.error('Failed to send verification email:', emailError)
+        console.error('[register] Failed to send verification email:', emailError)
+        return NextResponse.json({
+          success: true,
+          emailSent: false,
+          message:
+            'Аккаунт создан, но письмо с подтверждением не удалось отправить. Обратитесь к администратору или запросите повторную отправку.',
+          emailVerified: false,
+        })
       }
     }
 
     return NextResponse.json({
       success: true,
+      emailSent: !isFirstUser,
       message: isFirstUser
         ? 'Аккаунт создан. Вы первый пользователь — роль Владелец присвоена автоматически.'
         : 'Проверьте почту для подтверждения email.',

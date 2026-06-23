@@ -2,19 +2,29 @@ type RateLimitEntry = { count: number; resetAt: number }
 
 const store = new Map<string, RateLimitEntry>()
 
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of store) {
-    if (entry.resetAt < now) store.delete(key)
-  }
-}, 60_000)
+let cleanupStarted = false
+
+function ensureCleanup() {
+  if (cleanupStarted) return
+  cleanupStarted = true
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, entry] of store) {
+      if (entry.resetAt < now) store.delete(key)
+    }
+  }, 60_000)
+}
 
 export interface RateLimitOptions {
   limit: number
   windowMs: number
 }
 
-export function checkRateLimit(key: string, options: RateLimitOptions): { ok: boolean; remaining: number; resetAt: number } {
+export function checkRateLimit(
+  key: string,
+  options: RateLimitOptions
+): { ok: boolean; remaining: number; resetAt: number } {
+  ensureCleanup()
   const now = Date.now()
   const entry = store.get(key)
 

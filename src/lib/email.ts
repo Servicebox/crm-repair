@@ -9,23 +9,39 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;')
 }
 
-const smtpPort = Number(process.env.SMTP_PORT) || 465
-const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465
+function createTransporter() {
+  const host = process.env.SMTP_HOST
+  const user = process.env.SMTP_USER
+  const pass = process.env.SMTP_PASS
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: smtpPort,
-  secure: smtpSecure,
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
+  if (!host || !user || !pass) {
+    throw new Error(
+      `SMTP configuration incomplete. Missing: ${[
+        !host && 'SMTP_HOST',
+        !user && 'SMTP_USER',
+        !pass && 'SMTP_PASS',
+      ]
+        .filter(Boolean)
+        .join(', ')}`
+    )
+  }
+
+  const smtpPort = Number(process.env.SMTP_PORT) || 465
+  const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465
+
+  return nodemailer.createTransport({
+    host,
+    port: smtpPort,
+    secure: smtpSecure,
+    auth: { user, pass },
+  })
+}
 
 export async function sendVerificationEmail(email: string, token: string, name: string) {
   const url = `${process.env.NEXTAUTH_URL}/verify-email?token=${token}`
+  const transporter = createTransporter()
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: 'Подтвердите email — ServiceBox CRM',
     html: `
@@ -42,8 +58,9 @@ export async function sendVerificationEmail(email: string, token: string, name: 
 
 export async function sendPasswordResetEmail(email: string, token: string) {
   const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`
+  const transporter = createTransporter()
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: 'Сброс пароля — ServiceBox CRM',
     html: `
@@ -64,8 +81,9 @@ export async function sendOrderStatusNotification(
   status: string,
   message?: string
 ) {
+  const transporter = createTransporter()
   await transporter.sendMail({
-    from: process.env.SMTP_FROM,
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
     subject: `Заказ ${orderNumber} — обновление статуса`,
     html: `

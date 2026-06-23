@@ -26,7 +26,7 @@ export default function RegisterPage() {
         body: JSON.stringify({ name, email, password }),
       })
 
-      interface RegisterResponse { message?: string; error?: string; emailVerified?: boolean }
+      interface RegisterResponse { message?: string; error?: string; emailVerified?: boolean; emailSent?: boolean }
       const data = await res.json() as RegisterResponse
 
       if (!res.ok) {
@@ -35,6 +35,9 @@ export default function RegisterPage() {
         setSuccess(data.message ?? 'Аккаунт создан')
         if (data.emailVerified) {
           setTimeout(() => router.push('/login'), 2000)
+        }
+        if (data.emailSent === false && !data.emailVerified) {
+          setError('Письмо с подтверждением не удалось отправить. Обратитесь к администратору.')
         }
       }
     } catch {

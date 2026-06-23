@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import crypto from 'crypto'
 import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/models/User'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
@@ -20,9 +21,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { token, password } = ResetSchema.parse(body)
 
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    const rlToken = checkRateLimit(`reset-token:${tokenHash.substring(0, 16)}`, { limit: 5, windowMs: 60 * 60 * 1000 })
+    if (!rlToken.ok) {
+      return NextResponse.json({ error: 'Слишком много попыток для этой ссылки' }, { status: 429 })
+    }
+
     await connectToDatabase()
     const user = await User.findOne({
-      passwordResetToken: token,
+      passwordResetToken: tokenHash,
       passwordResetExpires: { $gt: new Date() },
     })
 
