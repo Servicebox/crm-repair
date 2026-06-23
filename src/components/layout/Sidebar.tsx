@@ -9,7 +9,7 @@ import {
   Settings, HelpCircle, Bell, Shield, FileText, Upload,
   Wrench, ShoppingBag, Store, MessageCircle, TrendingUp,
   ChevronDown, ChevronRight, LogOut, User, Bot, RotateCcw,
-  Menu, X, Sun, Moon, MapPin, Code2,
+  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt,
 } from 'lucide-react'
 
 interface NavItem {
@@ -74,6 +74,9 @@ const NAV: NavItem[] = [
       { label: 'Чат', href: '/chat', icon: MessageCircle },
       { label: 'Локации', href: '/locations', icon: MapPin, roles: ['owner', 'admin'] },
       { label: 'API и интеграции', href: '/settings/api', icon: Code2, roles: ['owner', 'admin'] },
+      { label: 'Форма приёмки', href: '/settings/reception', icon: ClipboardList, roles: ['owner', 'admin'] },
+      { label: 'Этикетка', href: '/settings/label', icon: Tag, roles: ['owner', 'admin'] },
+      { label: 'Кассы', href: '/settings/cashier', icon: Receipt, roles: ['owner', 'admin'] },
     ],
   },
   { label: 'Настройки', href: '/settings', icon: Settings },

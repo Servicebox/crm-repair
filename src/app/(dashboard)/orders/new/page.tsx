@@ -50,7 +50,10 @@ export default function NewOrderPage() {
   const [defect, setDefect] = useState('')
   const [priority, setPriority] = useState('normal')
   const [clientType, setClientType] = useState('b2c')
-  const [dueDate, setDueDate] = useState('')
+  const [dueDate, setDueDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() + 4)
+    return d.toISOString().split('T')[0]
+  })
   const [warrantyDays, setWarrantyDays] = useState(30)
   const [prepayment, setPrepayment] = useState(0)
   const [estimatedCost, setEstimatedCost] = useState(0)
@@ -716,35 +719,59 @@ export default function NewOrderPage() {
 
       {createdOrder && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 animate-in fade-in zoom-in duration-200">
-            <div className="text-center mb-5">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle className="w-9 h-9 text-green-600" />
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full animate-in fade-in zoom-in duration-200 overflow-hidden">
+            {/* Header */}
+            <div className="bg-slate-900 text-white px-5 py-4 flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
+                  <span>Заказы</span><span>/</span>
+                  <span className="font-mono text-white">{createdOrder.number}</span>
+                </div>
+                <h2 className="text-xl font-bold font-mono">{createdOrder.number}</h2>
+                <p className="text-slate-400 text-xs mt-0.5">
+                  Создан: {new Date().toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
-              <h2 className="text-xl font-bold mb-1">Заказ принят!</h2>
-              <p className="text-muted-foreground text-sm">Заказ <span className="font-semibold text-foreground">{createdOrder.number}</span> успешно создан</p>
+              <div className="flex items-center gap-1.5 mt-1">
+                <span className="bg-slate-700 text-slate-200 text-xs px-2 py-0.5 rounded-full">Новый</span>
+              </div>
             </div>
-            <div className="space-y-2 mb-5">
-              <p className="text-sm font-medium mb-2">Распечатать документы:</p>
-              {([
-                ['receipt', 'Квитанция клиенту', 'Полный документ с условиями приёмки'],
-                ['act', 'Акт приёмки', 'Копия сервиса с отрывным талоном'],
-              ] as const).map(([doc, label, desc]) => (
-                <button
-                  key={doc}
-                  type="button"
-                  onClick={() => window.open(`/orders/${createdOrder._id}/print?doc=${doc}`, '_blank')}
-                  className="w-full flex items-center gap-3 px-4 py-3 border rounded-xl hover:bg-blue-50 hover:border-blue-200 text-left transition"
-                >
-                  <Printer className="w-5 h-5 text-blue-500 shrink-0" />
-                  <div>
-                    <div className="text-sm font-medium">{label}</div>
-                    <div className="text-xs text-muted-foreground">{desc}</div>
-                  </div>
-                </button>
-              ))}
+
+            {/* Print buttons */}
+            <div className="px-5 py-3 border-b bg-slate-50">
+              <p className="text-xs text-muted-foreground mb-2 font-medium">Распечатать сразу после создания:</p>
+              <div className="flex gap-2">
+                {([
+                  ['receipt', 'Квитанция клиенту', 'Полный документ'],
+                  ['act', 'Акт приёмки', 'Копия сервиса'],
+                  ['label', 'Этикетка 40×30', 'На устройство'],
+                ] as const).map(([type, label, desc]) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => window.open(`/orders/${createdOrder._id}/print?type=${type}`, '_blank')}
+                    className="flex-1 flex flex-col items-center gap-0.5 px-2 py-2 border rounded-lg hover:bg-blue-50 hover:border-blue-200 text-center transition"
+                  >
+                    <Printer className="w-4 h-4 text-blue-500" />
+                    <div className="text-xs font-medium leading-tight">{label}</div>
+                    <div className="text-[10px] text-muted-foreground">{desc}</div>
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex gap-2">
+
+            {/* Order summary */}
+            <div className="px-5 py-3 text-sm space-y-1.5 border-b">
+              {clientName && <div className="flex justify-between"><span className="text-muted-foreground">Клиент:</span><span className="font-medium">{clientName}</span></div>}
+              {clientPhone && <div className="flex justify-between"><span className="text-muted-foreground">Телефон:</span><span>{clientPhone}</span></div>}
+              {deviceType && <div className="flex justify-between"><span className="text-muted-foreground">Устройство:</span><span>{deviceType}{deviceBrand ? ` ${deviceBrand}` : ''}{deviceModel ? ` ${deviceModel}` : ''}</span></div>}
+              {defect && <div className="flex justify-between"><span className="text-muted-foreground">Неисправность:</span><span className="max-w-[200px] text-right">{defect.slice(0, 60)}</span></div>}
+              {dueDate && <div className="flex justify-between"><span className="text-muted-foreground">Срок готовности:</span><span>{new Date(dueDate).toLocaleDateString('ru-RU')}</span></div>}
+              {prepayment > 0 && <div className="flex justify-between text-green-700"><span>Предоплата:</span><span className="font-medium">{prepayment.toLocaleString('ru-RU')} ₽</span></div>}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 px-5 py-3">
               <button
                 type="button"
                 onClick={() => router.push(`/orders/${createdOrder._id}`)}

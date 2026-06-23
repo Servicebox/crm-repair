@@ -96,6 +96,14 @@ export interface IOrder extends Document {
     createdAt: Date
   }>
 
+  receivedByName?: string
+  receivedById?: mongoose.Types.ObjectId
+  acceptedAt?: Date
+  customFields?: Array<{ label: string; value: string }>
+  prepaymentReceived?: boolean
+  prepaymentMethod?: string
+  photos?: string[]
+
   notificationSent: boolean
   createdBy: mongoose.Types.ObjectId
   createdAt: Date
@@ -208,6 +216,17 @@ const OrderSchema = new Schema<IOrder>(
       ],
       default: [],
     },
+
+    receivedByName: String,
+    receivedById: { type: Schema.Types.ObjectId, ref: 'User' },
+    acceptedAt: Date,
+    customFields: {
+      type: [{ label: String, value: String }],
+      default: [],
+    },
+    prepaymentReceived: { type: Boolean, default: false },
+    prepaymentMethod: String,
+    photos: { type: [String], default: [] },
 
     notificationSent: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

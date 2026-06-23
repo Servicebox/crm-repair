@@ -15,6 +15,8 @@ export interface IFiscalReceipt extends Document {
   paymentMethod: 'cash' | 'card' | 'qr'
   status: 'pending' | 'sent' | 'registered' | 'error'
   receiptId?: string
+  provider?: string
+  uuid?: string
   errorMessage?: string
   createdAt: Date
   updatedAt: Date
@@ -29,6 +31,8 @@ const FiscalReceiptSchema = new Schema<IFiscalReceipt>(
     paymentMethod: { type: String, enum: ['cash', 'card', 'qr'], required: true },
     status: { type: String, enum: ['pending', 'sent', 'registered', 'error'], default: 'pending' },
     receiptId: String,
+    provider: String,
+    uuid: String,
     errorMessage: String,
   },
   { timestamps: true }

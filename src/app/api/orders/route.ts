@@ -34,8 +34,11 @@ const CreateOrderSchema = z.object({
   warrantyDays: z.number().default(30),
   estimatedCost: z.number().optional(),
   prepayment: z.number().default(0),
+  prepaymentReceived: z.boolean().optional(),
+  prepaymentMethod: z.string().optional(),
   discount: z.number().default(0),
   adminComment: z.string().optional(),
+  customFields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -138,12 +141,20 @@ export async function POST(req: NextRequest) {
       locationId: data.locationId,
       checklist: data.checklist ?? {},
       customChecklistItems: data.customChecklistItems ?? [],
-      dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+      customFields: data.customFields ?? [],
+      dueDate: data.dueDate ? new Date(data.dueDate) : (() => {
+        const d = new Date(); d.setDate(d.getDate() + 4); return d
+      })(),
       warrantyDays: data.warrantyDays ?? company.defaultWarrantyDays,
       estimatedCost: data.estimatedCost,
       prepayment: data.prepayment ?? 0,
+      prepaymentReceived: data.prepaymentReceived ?? false,
+      prepaymentMethod: data.prepaymentMethod,
       discount: data.discount ?? 0,
       adminComment: data.adminComment,
+      receivedByName: session!.user.name ?? 'Система',
+      receivedById: session!.user.id,
+      acceptedAt: new Date(),
       createdBy: session!.user.id,
       statusHistory: [
         {
