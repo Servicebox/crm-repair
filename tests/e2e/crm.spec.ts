@@ -1,6 +1,6 @@
 import { test, expect, Page } from '@playwright/test'
 
-const BASE = 'http://localhost:3000'
+const BASE = 'https://koznova.site'
 const EMAIL = 'test@servicebox.local'
 const PASSWORD = 'test123'
 

@@ -3,7 +3,7 @@ import ApprovalButtons from '@/components/track/ApprovalButtons'
 
 async function getOrder(number: string) {
   try {
-    const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+    const baseUrl = process.env.NEXTAUTH_URL ?? 'https://koznova.site'
     const res = await fetch(`${baseUrl}/api/tracking/${number}`, { cache: 'no-store' })
     if (!res.ok) return null
     return res.json()
