@@ -1,8 +1,12 @@
-import NextAuth from 'next-auth'
+import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from '@/auth.config'
 import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/models/User'
+
+class EmailNotVerifiedError extends CredentialsSignin {
+  code = 'EMAIL_NOT_VERIFIED'
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
@@ -20,7 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const isValid = await user.comparePassword(credentials.password as string)
         if (!isValid) return null
         if (!user.isEmailVerified) {
-          throw new Error('EMAIL_NOT_VERIFIED')
+          throw new EmailNotVerifiedError()
         }
         return {
           id: user._id.toString(),

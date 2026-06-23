@@ -78,11 +78,11 @@ function ResetForm() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="w-full px-3 py-2.5 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition"
-                  placeholder="Минимум 6 символов"
+                  placeholder="Минимум 8 символов"
                   required
-                  minLength={6}
+                  minLength={8}
                 />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>

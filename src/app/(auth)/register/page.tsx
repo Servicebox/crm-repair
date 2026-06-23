@@ -19,23 +19,29 @@ export default function RegisterPage() {
     setLoading(true)
     setError('')
 
-    const res = await fetch('/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password }),
-    })
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      })
 
-    const data = await res.json()
+      interface RegisterResponse { message?: string; error?: string; emailVerified?: boolean }
+      const data = await res.json() as RegisterResponse
 
-    if (!res.ok) {
-      setError(data.error || 'Ошибка регистрации')
-    } else {
-      setSuccess(data.message)
-      if (data.emailVerified) {
-        setTimeout(() => router.push('/login'), 2000)
+      if (!res.ok) {
+        setError(data.error ?? 'Ошибка регистрации')
+      } else {
+        setSuccess(data.message ?? 'Аккаунт создан')
+        if (data.emailVerified) {
+          setTimeout(() => router.push('/login'), 2000)
+        }
       }
+    } catch {
+      setError('Ошибка сети. Проверьте подключение.')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
   }
 
   if (success) {
@@ -111,13 +117,14 @@ export default function RegisterPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="w-full px-3 py-2.5 pr-10 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition"
-                  placeholder="Минимум 6 символов"
+                  placeholder="Минимум 8 символов"
                   required
-                  minLength={6}
+                  minLength={8}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}

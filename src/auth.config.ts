@@ -1,7 +1,7 @@
 import type { NextAuthConfig } from 'next-auth'
 
 export const authConfig: NextAuthConfig = {
-  session: { strategy: 'jwt' },
+  session: { strategy: 'jwt', maxAge: 8 * 60 * 60 },
   pages: {
     signIn: '/login',
     error: '/login',
@@ -22,14 +22,14 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = (user as { role?: string }).role
+        token.role = user.role
       }
       return token
     },
     session({ session, token }) {
       if (token && session.user) {
-        session.user.id = token.id as string
-        session.user.role = token.role as string
+        if (token.id) session.user.id = token.id as string
+        if (token.role) session.user.role = token.role as string
       }
       return session
     },

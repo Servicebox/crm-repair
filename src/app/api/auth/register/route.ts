@@ -5,14 +5,21 @@ import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/models/User'
 import Company from '@/models/Company'
 import { sendVerificationEmail } from '@/lib/email'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const RegisterSchema = z.object({
   name: z.string().min(2, 'Имя минимум 2 символа'),
   email: z.string().email('Некорректный email'),
-  password: z.string().min(6, 'Пароль минимум 6 символов'),
+  password: z.string().min(8, 'Пароль минимум 8 символов'),
 })
 
 export async function POST(req: NextRequest) {
+  const ip = getClientIp(req)
+  const rl = checkRateLimit(`register:${ip}`, { limit: 10, windowMs: 60 * 60 * 1000 })
+  if (!rl.ok) {
+    return NextResponse.json({ error: 'Слишком много запросов. Попробуйте через час.' }, { status: 429 })
+  }
+
   try {
     const body = await req.json()
     const data = RegisterSchema.parse(body)

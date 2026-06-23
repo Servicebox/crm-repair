@@ -17,7 +17,11 @@ function VerifyEmailContent() {
       return
     }
 
-    fetch(`/api/auth/verify-email?token=${token}`)
+    const controller = new AbortController()
+    const url = new URL('/api/auth/verify-email', window.location.origin)
+    url.searchParams.set('token', token)
+
+    fetch(url.toString(), { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -25,13 +29,16 @@ function VerifyEmailContent() {
           setMessage(data.message)
         } else {
           setStatus('error')
-          setMessage(data.error)
+          setMessage(data.error ?? 'Ошибка верификации')
         }
       })
-      .catch(() => {
+      .catch(err => {
+        if (err.name === 'AbortError') return
         setStatus('error')
         setMessage('Ошибка сети')
       })
+
+    return () => controller.abort()
   }, [token])
 
   return (

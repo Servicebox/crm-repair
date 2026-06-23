@@ -9,10 +9,13 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;')
 }
 
+const smtpPort = Number(process.env.SMTP_PORT) || 465
+const smtpSecure = process.env.SMTP_SECURE === 'true' || smtpPort === 465
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: false,
+  port: smtpPort,
+  secure: smtpSecure,
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
