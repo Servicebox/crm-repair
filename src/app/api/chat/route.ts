@@ -1,7 +1,13 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
+import { requireAuth, ok, err } from '@/lib/api-helpers'
 import ChatMessage from '@/models/ChatMessage'
+
+const PostMessageSchema = z.object({
+  room: z.string().max(100).optional(),
+  text: z.string().min(1).max(4000),
+})
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -29,13 +35,20 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
   const { session } = auth
 
-  const body = await req.json()
-  await connectToDatabase()
-  const message = await ChatMessage.create({
-    roomId: body.room ?? 'general',
-    userId: session!.user.id,
-    userName: session!.user.name ?? 'Пользователь',
-    text: body.text,
-  })
-  return ok(message, 201)
+  try {
+    const body = await req.json()
+    const data = PostMessageSchema.parse(body)
+
+    await connectToDatabase()
+    const message = await ChatMessage.create({
+      roomId: data.room ?? 'general',
+      userId: session!.user.id,
+      userName: session!.user.name ?? 'Пользователь',
+      text: data.text,
+    })
+    return ok(message, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка отправки сообщения', 500)
+  }
 }

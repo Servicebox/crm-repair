@@ -14,6 +14,8 @@ import {
 import { StatusBadge, PriorityBadge } from '@/components/orders/OrderBadge'
 import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/constants/orders'
+import WorkModal from '@/components/orders/WorkModal'
+import PartModal from '@/components/orders/PartModal'
 
 const STAGE_STATUSES = [
   'new', 'diagnostics', 'waiting_approval', 'waiting_parts',
@@ -109,13 +111,14 @@ export default function OrderDetailPage() {
   const [showQr, setShowQr] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [showPrintMenu, setShowPrintMenu] = useState(false)
-  const [addWorkName, setAddWorkName] = useState('')
-  const [addWorkPrice, setAddWorkPrice] = useState('')
-  const [addPartName, setAddPartName] = useState('')
-  const [addPartQty, setAddPartQty] = useState('1')
-  const [addPartPrice, setAddPartPrice] = useState('')
+  const [showWorkModal, setShowWorkModal] = useState(false)
+  const [showPartModal, setShowPartModal] = useState(false)
   const [addPayAmount, setAddPayAmount] = useState('')
   const [addPayMethod, setAddPayMethod] = useState<'cash' | 'card' | 'transfer' | 'online'>('cash')
+  const [showTerminalModal, setShowTerminalModal] = useState(false)
+  const [terminalStatus, setTerminalStatus] = useState<'idle' | 'sending' | 'waiting' | 'success' | 'error'>('idle')
+  const [terminalMessage, setTerminalMessage] = useState('')
+  const [terminalAmount, setTerminalAmount] = useState('')
 
   const { data, isLoading } = useQuery({
     queryKey: ['order', id],
@@ -174,34 +177,32 @@ export default function OrderDetailPage() {
     setStatusComment('')
   }
 
-  function addWork() {
-    if (!addWorkName || !addWorkPrice) return
-    const works = [...(order.works ?? []), { name: addWorkName, price: parseFloat(addWorkPrice) }]
-    const finalCost = works.reduce((s: number, w: { price: number }) => s + w.price, 0) +
+  function addWorkEntry(entry: { name: string; price: number; discount?: number; duration?: number; cost?: number; masterName?: string }, addMore: boolean) {
+    const works = [...(order.works ?? []), entry]
+    const finalCost = works.reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
       (order.parts ?? []).reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
     patch({ works, finalCost })
-    setAddWorkName(''); setAddWorkPrice('')
+    if (!addMore) setShowWorkModal(false)
   }
 
   function removeWork(i: number) {
     const works = order.works.filter((_: unknown, idx: number) => idx !== i)
-    const finalCost = works.reduce((s: number, w: { price: number }) => s + w.price, 0) +
+    const finalCost = works.reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
       (order.parts ?? []).reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
     patch({ works, finalCost })
   }
 
-  function addPart() {
-    if (!addPartName || !addPartPrice) return
-    const parts = [...(order.parts ?? []), { name: addPartName, quantity: parseInt(addPartQty), price: parseFloat(addPartPrice), cost: parseFloat(addPartPrice) }]
-    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number }) => s + w.price, 0) +
+  function addPartEntry(entry: { productId?: string; name: string; quantity: number; cost: number; price: number }, addMore: boolean) {
+    const parts = [...(order.parts ?? []), entry]
+    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
       parts.reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
     patch({ parts, finalCost })
-    setAddPartName(''); setAddPartQty('1'); setAddPartPrice('')
+    if (!addMore) setShowPartModal(false)
   }
 
   function removePart(i: number) {
     const parts = order.parts.filter((_: unknown, idx: number) => idx !== i)
-    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number }) => s + w.price, 0) +
+    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
       parts.reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
     patch({ parts, finalCost })
   }
@@ -211,6 +212,52 @@ export default function OrderDetailPage() {
     const payments = [...(order.payments ?? []), { amount: parseFloat(addPayAmount), method: addPayMethod, date: new Date() }]
     patch({ payments })
     setAddPayAmount('')
+  }
+
+  async function handleTerminalPayment() {
+    const amount = parseFloat(terminalAmount) || remaining
+    if (!amount || amount <= 0) return
+    setTerminalStatus('sending')
+    setTerminalMessage('Отправка запроса на терминал...')
+    try {
+      const res = await fetch('/api/terminal/charge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount, orderNumber: order.number, orderId: id }),
+      })
+      const json = await res.json()
+      if (!res.ok || !json.success) {
+        setTerminalStatus('error')
+        setTerminalMessage(json.error ?? 'Ошибка связи с терминалом')
+        return
+      }
+      if (json.manualMode) {
+        setTerminalStatus('waiting')
+        setTerminalMessage('Проведите оплату через терминал и подтвердите')
+        return
+      }
+      setTerminalStatus('success')
+      setTerminalMessage('Оплата прошла успешно')
+      const payments = [...(order.payments ?? []), { amount, method: 'card' as const, date: new Date() }]
+      patch({ payments })
+    } catch {
+      setTerminalStatus('error')
+      setTerminalMessage('Нет связи с терминалом')
+    }
+  }
+
+  function confirmTerminalManual() {
+    const amount = parseFloat(terminalAmount) || remaining
+    const payments = [...(order.payments ?? []), { amount, method: 'card' as const, date: new Date() }]
+    patch({ payments })
+    setTerminalStatus('success')
+    setTerminalMessage('Оплата подтверждена')
+    setTimeout(() => {
+      setShowTerminalModal(false)
+      setTerminalStatus('idle')
+      setTerminalMessage('')
+      setTerminalAmount('')
+    }, 1500)
   }
 
   const trackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/track/${order.number}`
@@ -265,6 +312,9 @@ export default function OrderDetailPage() {
                 </Link>
                 <Link href={`/orders/${id}/print?type=act`} target="_blank" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent transition">
                   <FileText className="w-4 h-4 text-green-500" /> Акт приёмки
+                </Link>
+                <Link href={`/orders/${id}/print?type=works-act`} target="_blank" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent transition">
+                  <FileText className="w-4 h-4 text-blue-500" /> Акт о выполненных работах
                 </Link>
                 <Link href={`/orders/${id}/print?type=label`} target="_blank" className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent transition">
                   <Tag className="w-4 h-4 text-orange-500" /> Этикетка 40×30
@@ -514,59 +564,89 @@ export default function OrderDetailPage() {
             <div className="space-y-4">
               {/* Works */}
               <div className="bg-card border rounded-xl p-4">
-                <h3 className="font-semibold mb-3 text-sm flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-blue-500" /> Работы
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-blue-500" /> Работы
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowWorkModal(true)}
+                    className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 border border-blue-200 rounded-lg px-2.5 py-1.5 hover:bg-blue-50 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Добавить работу
+                  </button>
+                </div>
                 {(order.works ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Работы не добавлены</p>
+                  <p className="text-sm text-muted-foreground py-2">Работы не добавлены</p>
                 ) : (
                   <div className="divide-y">
-                    {(order.works ?? []).map((w: { name: string; price: number }, i: number) => (
-                      <div key={i} className="flex items-center justify-between py-2 text-sm">
-                        <span>{w.name}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="font-medium">{formatCurrency(w.price)}</span>
-                          <button onClick={() => removeWork(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
+                    {(order.works ?? []).map((w: { name: string; price: number; discount?: number; duration?: number; masterName?: string }, i: number) => (
+                      <div key={i} className="py-2.5">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">{w.name}</span>
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium">{formatCurrency(w.price - (w.discount ?? 0))}</span>
+                            <button type="button" onClick={() => removeWork(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
+                          </div>
                         </div>
+                        {(w.discount || w.duration || w.masterName) && (
+                          <div className="flex gap-3 mt-0.5 text-xs text-muted-foreground">
+                            {w.discount ? <span>скидка {formatCurrency(w.discount)}</span> : null}
+                            {w.duration ? <span>{w.duration} мин.</span> : null}
+                            {w.masterName ? <span>{w.masterName}</span> : null}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 mt-3">
-                  <input value={addWorkName} onChange={e => setAddWorkName(e.target.value)} placeholder="Наименование" className="flex-1 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  <input value={addWorkPrice} onChange={e => setAddWorkPrice(e.target.value)} placeholder="Цена" type="number" className="w-24 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  <button onClick={addWork} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><Plus className="w-4 h-4" /></button>
-                </div>
               </div>
 
               {/* Parts */}
               <div className="bg-card border rounded-xl p-4">
-                <h3 className="font-semibold mb-3 text-sm flex items-center gap-2">
-                  <Wrench className="w-4 h-4 text-orange-500" /> Запчасти
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold text-sm flex items-center gap-2">
+                    <Wrench className="w-4 h-4 text-orange-500" /> Запчасти
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowPartModal(true)}
+                    className="flex items-center gap-1 text-xs font-medium text-orange-600 hover:text-orange-700 border border-orange-200 rounded-lg px-2.5 py-1.5 hover:bg-orange-50 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Добавить запчасть
+                  </button>
+                </div>
                 {(order.parts ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Запчасти не добавлены</p>
+                  <p className="text-sm text-muted-foreground py-2">Запчасти не добавлены</p>
                 ) : (
                   <div className="divide-y">
                     {(order.parts ?? []).map((p: { name: string; price: number; quantity: number }, i: number) => (
-                      <div key={i} className="flex items-center justify-between py-2 text-sm">
-                        <span>{p.name} × {p.quantity}</span>
+                      <div key={i} className="flex items-center justify-between py-2.5 text-sm">
+                        <span>{p.name}{p.quantity > 1 && <span className="text-muted-foreground ml-1">× {p.quantity}</span>}</span>
                         <div className="flex items-center gap-3">
                           <span className="font-medium">{formatCurrency(p.price * p.quantity)}</span>
-                          <button onClick={() => removePart(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => removePart(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
-                <div className="flex gap-2 mt-3">
-                  <input value={addPartName} onChange={e => setAddPartName(e.target.value)} placeholder="Название" className="flex-1 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  <input value={addPartQty} onChange={e => setAddPartQty(e.target.value)} placeholder="Кол-во" type="number" className="w-16 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  <input value={addPartPrice} onChange={e => setAddPartPrice(e.target.value)} placeholder="Цена" type="number" className="w-24 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  <button onClick={addPart} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700"><Plus className="w-4 h-4" /></button>
-                </div>
               </div>
             </div>
+          )}
+
+          {/* Modals */}
+          {showWorkModal && (
+            <WorkModal
+              onAdd={addWorkEntry}
+              onClose={() => setShowWorkModal(false)}
+            />
+          )}
+          {showPartModal && (
+            <PartModal
+              onAdd={addPartEntry}
+              onClose={() => setShowPartModal(false)}
+            />
           )}
 
           {/* PAYMENT TAB */}
@@ -627,7 +707,7 @@ export default function OrderDetailPage() {
               </div>
 
               {/* Add payment */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <select value={addPayMethod} onChange={e => setAddPayMethod(e.target.value as 'cash' | 'card' | 'transfer' | 'online')}
                   className="px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
                   <option value="cash">Наличными</option>
@@ -635,11 +715,109 @@ export default function OrderDetailPage() {
                   <option value="transfer">Переводом</option>
                   <option value="online">Онлайн</option>
                 </select>
-                <input value={addPayAmount} onChange={e => setAddPayAmount(e.target.value)} placeholder="Сумма" type="number"
-                  className="flex-1 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                <button onClick={addPayment} className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
+                <input value={addPayAmount} onChange={e => setAddPayAmount(e.target.value)} placeholder={`Сумма (остаток ${formatCurrency(remaining)})`} type="number"
+                  className="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+                <button type="button" onClick={addPayment} className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition">
                   Принять
                 </button>
+              </div>
+
+              {/* Terminal + Print act */}
+              <div className="flex gap-2 mt-3 pt-3 border-t flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => { setTerminalAmount(String(remaining)); setShowTerminalModal(true); setTerminalStatus('idle'); setTerminalMessage('') }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm hover:bg-accent transition"
+                >
+                  <Receipt className="w-4 h-4 text-blue-500" /> Через терминал
+                </button>
+                <Link
+                  href={`/orders/${id}/print?type=works-act`}
+                  target="_blank"
+                  className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm hover:bg-accent transition"
+                >
+                  <FileText className="w-4 h-4 text-green-500" /> Акт о работах
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Terminal modal */}
+          {showTerminalModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+              <div className="bg-card border rounded-2xl w-full max-w-sm mx-4 shadow-2xl">
+                <div className="flex items-center justify-between px-5 py-4 border-b">
+                  <h2 className="font-semibold text-base flex items-center gap-2">
+                    <Receipt className="w-4 h-4 text-blue-500" /> Оплата через терминал
+                  </h2>
+                  <button type="button" onClick={() => setShowTerminalModal(false)} className="p-1 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+                </div>
+                <div className="p-5 space-y-4">
+                  {terminalStatus === 'idle' && (
+                    <>
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground block mb-1">Сумма к оплате</label>
+                        <input
+                          type="number"
+                          value={terminalAmount}
+                          onChange={e => setTerminalAmount(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleTerminalPayment}
+                        className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                      >
+                        Отправить на терминал
+                      </button>
+                    </>
+                  )}
+                  {(terminalStatus === 'sending' || terminalStatus === 'waiting') && (
+                    <div className="text-center py-4">
+                      <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-3" />
+                      <p className="text-sm font-medium">{terminalMessage}</p>
+                      {terminalStatus === 'waiting' && (
+                        <div className="mt-4 space-y-2">
+                          <p className="text-xs text-muted-foreground">После получения оплаты нажмите «Подтвердить»</p>
+                          <button
+                            type="button"
+                            onClick={confirmTerminalManual}
+                            className="w-full py-2.5 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+                          >
+                            ✓ Подтвердить оплату
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {terminalStatus === 'success' && (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <Check className="w-6 h-6 text-green-600" />
+                      </div>
+                      <p className="text-sm font-medium text-green-700">{terminalMessage}</p>
+                      <div className="flex gap-2 mt-4">
+                        <button type="button" onClick={() => { setShowTerminalModal(false); setTerminalStatus('idle') }} className="flex-1 py-2 border rounded-lg text-sm hover:bg-accent">Закрыть</button>
+                        <Link href={`/orders/${id}/print?type=works-act`} target="_blank" className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm text-center hover:bg-blue-700 transition">
+                          Печать акта
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                  {terminalStatus === 'error' && (
+                    <div className="text-center py-4">
+                      <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                        <AlertCircle className="w-6 h-6 text-red-600" />
+                      </div>
+                      <p className="text-sm font-medium text-red-700">{terminalMessage}</p>
+                      <div className="flex gap-2 mt-4">
+                        <button type="button" onClick={() => setTerminalStatus('idle')} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Повторить</button>
+                        <button type="button" onClick={confirmTerminalManual} className="flex-1 py-2 border rounded-lg text-sm hover:bg-accent">Ручное подтверждение</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

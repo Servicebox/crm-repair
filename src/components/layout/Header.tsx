@@ -1,8 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Search, Bell, Plus, User } from 'lucide-react'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -23,7 +24,20 @@ const PAGE_TITLES: Record<string, string> = {
 export default function Header() {
   const { data: session } = useSession()
   const pathname = usePathname()
+  const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
+
+  const { data: unreadData } = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: async () => {
+      const res = await fetch('/api/notifications?count=unread')
+      const json = await res.json() as { data: { count: number } }
+      return json.data?.count ?? 0
+    },
+    refetchInterval: 30000,
+    staleTime: 20000,
+  })
+  const unreadCount = unreadData ?? 0
 
   const title = Object.entries(PAGE_TITLES).find(([key]) => pathname.startsWith(key))?.[1] ?? 'CRM'
 
@@ -65,9 +79,17 @@ export default function Header() {
       </Link>
 
       {/* Notifications */}
-      <button className="relative p-2 rounded-lg hover:bg-accent transition">
+      <button
+        onClick={() => router.push('/notifications')}
+        className="relative p-2 rounded-lg hover:bg-accent transition"
+        aria-label={`Уведомления${unreadCount > 0 ? `, ${unreadCount} непрочитанных` : ''}`}
+      >
         <Bell className="w-5 h-5 text-muted-foreground" />
-        <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
+        {unreadCount > 0 && (
+          <span className="absolute top-1 right-1 min-w-[14px] h-[14px] bg-red-500 rounded-full flex items-center justify-center text-white text-[9px] font-bold px-0.5">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
       </button>
 
       {/* User */}

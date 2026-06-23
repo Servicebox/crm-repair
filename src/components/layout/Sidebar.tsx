@@ -80,6 +80,7 @@ const NAV: NavItem[] = [
     ],
   },
   { label: 'Настройки', href: '/settings', icon: Settings },
+  { label: 'Справка', href: '/help', icon: HelpCircle },
   { label: 'Поддержка', href: '/support', icon: HelpCircle },
 ]
 

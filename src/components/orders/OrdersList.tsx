@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { StatusBadge, PriorityBadge } from './OrderBadge'
 import { Smartphone, Laptop, ChevronDown, ChevronUp } from 'lucide-react'
@@ -29,6 +30,7 @@ function DeviceIcon({ type }: { type: string }) {
 }
 
 export default function OrdersList({ orders, onRefetch }: { orders: Order[]; onRefetch: () => void }) {
+  const router = useRouter()
   const [sortKey, setSortKey] = useState<keyof Order>('createdAt')
   const [sortAsc, setSortAsc] = useState(false)
 
@@ -82,9 +84,17 @@ export default function OrdersList({ orders, onRefetch }: { orders: Order[]; onR
         </thead>
         <tbody>
           {sorted.map(order => (
-            <tr key={order._id} className="border-b hover:bg-accent/50 transition-colors">
+            <tr
+              key={order._id}
+              className="border-b hover:bg-accent/50 transition-colors cursor-pointer"
+              onClick={() => router.push(`/orders/${order._id}`)}
+            >
               <td className="px-3 py-2.5">
-                <Link href={`/orders/${order._id}`} className="font-mono font-medium text-blue-600 hover:underline text-xs">
+                <Link
+                  href={`/orders/${order._id}`}
+                  className="font-mono font-medium text-blue-600 hover:underline text-xs"
+                  onClick={e => e.stopPropagation()}
+                >
                   {order.number}
                 </Link>
               </td>

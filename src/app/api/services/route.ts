@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = { isActive: true }
   if (search) filter.name = { $regex: search, $options: 'i' }
-  if (deviceType) filter.$or = [{ deviceTypes: [] }, { deviceTypes: deviceType }]
+  if (deviceType) filter.$or = [{ deviceTypes: { $size: 0 } }, { deviceTypes: deviceType }]
 
   const services = await Service.find(filter).sort({ category: 1, name: 1 }).lean()
   return ok(services)

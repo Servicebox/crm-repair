@@ -7,12 +7,17 @@ import Product from '@/models/Product'
 const ProductSchema = z.object({
   name: z.string().min(1),
   sku: z.string().optional(),
+  barcode: z.string().optional(),
   category: z.string().optional(),
   description: z.string().optional(),
+  productType: z.enum(['part', 'product']).default('part'),
+  condition: z.enum(['new', 'used']).optional(),
+  location: z.string().optional(),
+  serialTracking: z.boolean().default(false),
   quantity: z.number().default(0),
   minQuantity: z.number().default(1),
-  cost: z.number().default(0),
-  price: z.number().default(0),
+  cost: z.number().min(0),
+  price: z.number().min(0),
   supplier: z.string().optional(),
   locationId: z.string().optional(),
 })
@@ -26,14 +31,23 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search')
   const category = searchParams.get('category')
   const lowStock = searchParams.get('lowStock') === 'true'
+  const productType = searchParams.get('productType')
+  const stockFilter = searchParams.get('stock')
 
   const filter: Record<string, unknown> = { isActive: true }
-  if (search) filter.$or = [
-    { name: { $regex: search, $options: 'i' } },
-    { sku: { $regex: search, $options: 'i' } },
-  ]
+  if (productType) filter.productType = productType
+  if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    filter.$or = [
+      { name: { $regex: escaped, $options: 'i' } },
+      { sku: { $regex: escaped, $options: 'i' } },
+      { barcode: { $regex: escaped, $options: 'i' } },
+      { category: { $regex: escaped, $options: 'i' } },
+    ]
+  }
   if (category) filter.category = category
-  if (lowStock) filter.$expr = { $lte: ['$quantity', '$minQuantity'] }
+  if (lowStock || stockFilter === 'low') filter.$expr = { $lte: ['$quantity', '$minQuantity'] }
+  if (stockFilter === 'out') filter.quantity = 0
 
   const products = await Product.find(filter).sort({ name: 1 }).lean()
   return ok(products)

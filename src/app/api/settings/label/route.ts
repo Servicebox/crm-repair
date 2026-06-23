@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
+import { requireRole, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
 
 const SETTINGS_KEY = 'labelSettings'
 
 export async function GET() {
-  const auth = await requireAuth()
+  const auth = await requireRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   await connectToDatabase()
@@ -18,7 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   await connectToDatabase()

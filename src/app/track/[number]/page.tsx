@@ -1,4 +1,5 @@
 import { Wrench, CheckCircle, Clock, Package, AlertCircle } from 'lucide-react'
+import ApprovalButtons from '@/components/track/ApprovalButtons'
 
 async function getOrder(number: string) {
   try {
@@ -113,6 +114,13 @@ export default async function TrackPage({ params }: { params: { number: string }
             </div>
           )}
         </div>
+
+        {/* Approval buttons when waiting for client decision */}
+        {order.status === 'waiting_approval' && (
+          <div className="mb-4">
+            <ApprovalButtons orderNumber={order.number} estimatedCost={order.estimatedCost} />
+          </div>
+        )}
 
         {/* History */}
         {order.history && order.history.length > 0 && (

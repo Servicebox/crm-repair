@@ -13,7 +13,7 @@ export type OrderStatus =
 
 export type OrderType = 'repair' | 'service'
 export type OrderPriority = 'low' | 'normal' | 'high' | 'urgent'
-export type ClientType = 'b2c' | 'b2b'
+export type ClientType = 'b2c' | 'b2b' | 'individual' | 'ip' | 'company'
 
 export type ChecklistValue = 'ok' | 'defect' | 'na'
 
@@ -21,6 +21,9 @@ export interface IOrderWork {
   serviceId?: mongoose.Types.ObjectId
   name: string
   price: number
+  discount?: number
+  duration?: number
+  cost?: number
   masterId?: mongoose.Types.ObjectId
   masterName?: string
 }
@@ -124,7 +127,7 @@ const OrderSchema = new Schema<IOrder>(
       enum: ['low', 'normal', 'high', 'urgent'],
       default: 'normal',
     },
-    clientType: { type: String, enum: ['b2c', 'b2b'], default: 'b2c' },
+    clientType: { type: String, enum: ['b2c', 'b2b', 'individual', 'ip', 'company'], default: 'individual' },
 
     clientId: { type: Schema.Types.ObjectId, ref: 'Client', required: true },
     clientName: { type: String, required: true },
@@ -162,6 +165,9 @@ const OrderSchema = new Schema<IOrder>(
           serviceId: { type: Schema.Types.ObjectId, ref: 'Service' },
           name: String,
           price: Number,
+          discount: { type: Number, default: 0 },
+          duration: Number,
+          cost: { type: Number, default: 0 },
           masterId: { type: Schema.Types.ObjectId, ref: 'User' },
           masterName: String,
         },

@@ -3,8 +3,13 @@ import mongoose, { Document, Model, Schema } from 'mongoose'
 export interface IProduct extends Document {
   name: string
   sku?: string
+  barcode?: string
   category?: string
   description?: string
+  productType: 'part' | 'product'
+  condition?: 'new' | 'used'
+  location?: string
+  serialTracking: boolean
   quantity: number
   minQuantity: number
   cost: number
@@ -20,8 +25,13 @@ const ProductSchema = new Schema<IProduct>(
   {
     name: { type: String, required: true },
     sku: { type: String, unique: true, sparse: true },
+    barcode: { type: String, unique: true, sparse: true },
     category: String,
     description: String,
+    productType: { type: String, enum: ['part', 'product'], default: 'part' },
+    condition: { type: String, enum: ['new', 'used'], default: 'new' },
+    location: String,
+    serialTracking: { type: Boolean, default: false },
     quantity: { type: Number, required: true, default: 0 },
     minQuantity: { type: Number, default: 1 },
     cost: { type: Number, default: 0 },
@@ -33,7 +43,7 @@ const ProductSchema = new Schema<IProduct>(
   { timestamps: true }
 )
 
-ProductSchema.index({ name: 'text', sku: 'text', category: 'text' })
+ProductSchema.index({ name: 'text', sku: 'text', barcode: 'text', category: 'text' })
 
 const Product: Model<IProduct> =
   mongoose.models.Product ?? mongoose.model<IProduct>('Product', ProductSchema)

@@ -1,8 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Code2, Key, Copy, Check, RefreshCw, Download, Globe,
-  Webhook, FileJson, AlertTriangle, ChevronRight,
+  Webhook, FileJson, ChevronRight, Save, Loader2,
 } from 'lucide-react'
 
 const TABS = [
@@ -38,13 +38,21 @@ function MethodBadge({ method }: { method: string }) {
   )
 }
 
-function DevBanner() {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
-      <AlertTriangle className="w-4 h-4 shrink-0" />
-      <span>Раздел в разработке — будет доступен в следующей версии.</span>
-    </div>
-  )
+
+interface FiscalSettings {
+  enabled: boolean
+  autoReceipt: boolean
+  ofdProvider: string
+  inn: string
+  printMethods: { cash: boolean; card: boolean; qr: boolean; transfer: boolean }
+}
+
+const DEFAULT_FISCAL: FiscalSettings = {
+  enabled: false,
+  autoReceipt: false,
+  ofdProvider: '',
+  inn: '',
+  printMethods: { cash: true, card: true, qr: false, transfer: false },
 }
 
 export default function ApiSettingsPage() {
@@ -54,9 +62,39 @@ export default function ApiSettingsPage() {
   const [exportLoading, setExportLoading] = useState(false)
   const [lastExport, setLastExport] = useState<string | null>(null)
   const [exportFormat, setExportFormat] = useState<'json' | 'xml'>('json')
-  const [fiscalEnabled, setFiscalEnabled] = useState(false)
+  const [fiscal, setFiscal] = useState<FiscalSettings>(DEFAULT_FISCAL)
+  const [fiscalSaving, setFiscalSaving] = useState(false)
+  const [fiscalSaved, setFiscalSaved] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookEvents, setWebhookEvents] = useState({ newOrder: true, statusChange: true, payment: false })
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch('/api/settings/fiscal')
+        const json = await res.json() as { success: boolean; data: FiscalSettings | null }
+        if (json.success && json.data) {
+          setFiscal({ ...DEFAULT_FISCAL, ...json.data, printMethods: { ...DEFAULT_FISCAL.printMethods, ...(json.data.printMethods ?? {}) } })
+        }
+      } catch { /* use defaults */ }
+    }
+    void load()
+  }, [])
+
+  async function saveFiscal() {
+    setFiscalSaving(true)
+    try {
+      await fetch('/api/settings/fiscal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(fiscal),
+      })
+      setFiscalSaved(true)
+      setTimeout(() => setFiscalSaved(false), 2500)
+    } catch { /* ignore */ } finally {
+      setFiscalSaving(false)
+    }
+  }
 
   function handleCopy() {
     navigator.clipboard.writeText(DEMO_KEY).catch(() => undefined)
@@ -189,51 +227,130 @@ export default function ApiSettingsPage() {
 
           {/* Fiscal tab */}
           {tab === 'fiscal' && (
-            <>
-              <h2 className="font-semibold text-base">Фискализация</h2>
-              <DevBanner />
-              <div className="space-y-4 opacity-50 pointer-events-none">
-                <label className="flex items-center gap-3 cursor-not-allowed">
+            <div className="space-y-5">
+              <div>
+                <h2 className="font-semibold text-base">Фискализация</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Настройка автоматической отправки чеков в ОФД через API кассы (АТОЛ и др.)
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <label className="flex items-center gap-3 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={fiscalEnabled}
-                    onChange={(e) => setFiscalEnabled(e.target.checked)}
-                    className="w-4 h-4 rounded"
+                    checked={fiscal.enabled}
+                    onChange={e => setFiscal(p => ({ ...p, enabled: e.target.checked }))}
+                    className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
                   />
                   <div>
                     <p className="text-sm font-medium">Включить фискализацию</p>
                     <p className="text-xs text-muted-foreground">Автоматическая отправка чеков в ОФД</p>
                   </div>
                 </label>
+
+                {fiscal.enabled && (
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={fiscal.autoReceipt}
+                      onChange={e => setFiscal(p => ({ ...p, autoReceipt: e.target.checked }))}
+                      className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
+                    />
+                    <div>
+                      <p className="text-sm font-medium">Автоматически при оплате заказа</p>
+                      <p className="text-xs text-muted-foreground">Отправлять чек сразу после записи оплаты</p>
+                    </div>
+                  </label>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Провайдер ОФД</label>
-                  <select className="w-full px-3 py-2 border rounded-lg text-sm bg-background">
-                    <option>Выберите ОФД...</option>
-                    <option>ОФД.ру</option>
-                    <option>Платформа ОФД</option>
-                    <option>Первый ОФД</option>
-                    <option>Контур.ОФД</option>
+                  <select
+                    value={fiscal.ofdProvider}
+                    onChange={e => setFiscal(p => ({ ...p, ofdProvider: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Выберите ОФД...</option>
+                    <option value="atol">АТОЛ Онлайн</option>
+                    <option value="ofdru">ОФД.ру</option>
+                    <option value="platformofd">Платформа ОФД</option>
+                    <option value="firstofd">Первый ОФД</option>
+                    <option value="kontur">Контур.ОФД</option>
+                    <option value="yandex">Яндекс ОФД</option>
                   </select>
+                  {fiscal.ofdProvider === 'atol' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Параметры АТОЛ (логин, пароль, URL) настраиваются в разделе{' '}
+                      <a href="/settings/cashier" className="text-blue-600 underline">Кассы</a>
+                    </p>
+                  )}
                 </div>
+
                 <div>
-                  <label className="block text-sm font-medium mb-1">ИНН</label>
+                  <label className="block text-sm font-medium mb-1">ИНН организации</label>
                   <input
                     type="text"
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
+                    value={fiscal.inn}
+                    onChange={e => setFiscal(p => ({ ...p, inn: e.target.value }))}
+                    className="w-full px-3 py-2 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
                     placeholder="1234567890"
+                    maxLength={12}
                   />
                 </div>
-                <div>
-                  <p className="text-sm font-medium mb-2">Печатать чек при оплате:</p>
-                  {['Наличными', 'Картой', 'QR-кодом', 'Безналичным переводом'].map((method) => (
-                    <label key={method} className="flex items-center gap-2 text-sm py-1 cursor-pointer">
-                      <input type="checkbox" defaultChecked className="rounded" />
-                      {method}
+              </div>
+
+              <div>
+                <p className="text-sm font-medium mb-2">Печатать чек при оплате:</p>
+                <div className="grid grid-cols-2 gap-y-2">
+                  {([
+                    ['cash', 'Наличными'],
+                    ['card', 'Картой'],
+                    ['qr', 'QR-кодом (СБП)'],
+                    ['transfer', 'Безналичным переводом'],
+                  ] as [keyof FiscalSettings['printMethods'], string][]).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={fiscal.printMethods[key]}
+                        onChange={e => setFiscal(p => ({
+                          ...p,
+                          printMethods: { ...p.printMethods, [key]: e.target.checked },
+                        }))}
+                        className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
+                      />
+                      {label}
                     </label>
                   ))}
                 </div>
               </div>
-            </>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => void saveFiscal()}
+                    disabled={fiscalSaving}
+                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                  >
+                    {fiscalSaving
+                      ? <Loader2 className="w-4 h-4 animate-spin" />
+                      : <Save className="w-4 h-4" />}
+                    {fiscalSaved ? 'Сохранено' : 'Сохранить настройки'}
+                  </button>
+                  {fiscalSaved && (
+                    <span className="flex items-center gap-1 text-sm text-green-600">
+                      <Check className="w-4 h-4" /> Настройки сохранены
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Чек отправляется через эндпоинт{' '}
+                  <code className="bg-muted px-1 rounded font-mono">POST /api/v1/fiscal/receipt</code>
+                </p>
+              </div>
+            </div>
           )}
 
           {/* 1C tab */}
@@ -302,7 +419,10 @@ export default function ApiSettingsPage() {
           {tab === 'webhook' && (
             <>
               <h2 className="font-semibold text-base">Webhook</h2>
-              <DevBanner />
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
+                <ChevronRight className="w-4 h-4 shrink-0" />
+                <span>Раздел в разработке — будет доступен в следующей версии.</span>
+              </div>
               <div className="space-y-4 opacity-50 pointer-events-none">
                 <div>
                   <label className="block text-sm font-medium mb-1">URL для уведомлений</label>

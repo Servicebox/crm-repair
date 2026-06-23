@@ -1,7 +1,53 @@
 import { NextRequest } from 'next/server'
+import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
+import { requireAuth, requireRole, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
+
+const SettingsUpdateSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  address: z.string().optional(),
+  website: z.string().optional(),
+  inn: z.string().optional(),
+  ogrn: z.string().optional(),
+  logo: z.string().optional(),
+  brandColor: z.string().optional(),
+  orderPrefix: z.string().max(10).optional(),
+  defaultWarrantyDays: z.number().int().min(0).optional(),
+  defaultReadyDays: z.number().int().min(0).optional(),
+  notificationTemplates: z.object({
+    statusChange: z.string().optional(),
+    ready: z.string().optional(),
+    issued: z.string().optional(),
+  }).optional(),
+  receiptSettings: z.object({
+    showLogo: z.boolean().optional(),
+    showRequisites: z.boolean().optional(),
+    footerText: z.string().optional(),
+  }).optional(),
+  checklistItems: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    order: z.number(),
+  })).optional(),
+  acceptanceFormFields: z.array(z.object({
+    key: z.string(),
+    label: z.string(),
+    visible: z.boolean(),
+    required: z.boolean(),
+  })).optional(),
+  features: z.object({
+    electronicSignature: z.boolean().optional(),
+    clientReturn: z.boolean().optional(),
+    vkIntegration: z.boolean().optional(),
+    telegramBot: z.boolean().optional(),
+  }).optional(),
+  telegramBotToken: z.string().optional(),
+  vkGroupId: z.string().optional(),
+  vkAccessToken: z.string().optional(),
+})
 
 export async function GET() {
   const auth = await requireAuth()
@@ -14,11 +60,17 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
-  await connectToDatabase()
-  const body = await req.json()
-  const company = await Company.findOneAndUpdate({}, { $set: body }, { new: true, upsert: true })
-  return ok(company)
+  try {
+    await connectToDatabase()
+    const body = await req.json()
+    const data = SettingsUpdateSchema.parse(body)
+    const company = await Company.findOneAndUpdate({}, { $set: data }, { new: true, upsert: true })
+    return ok(company)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка обновления настроек', 500)
+  }
 }

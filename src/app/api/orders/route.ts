@@ -5,6 +5,7 @@ import { requireAuth, ok, err } from '@/lib/api-helpers'
 import Order from '@/models/Order'
 import Client from '@/models/Client'
 import Company from '@/models/Company'
+import Notification from '@/models/Notification'
 
 const CreateOrderSchema = z.object({
   type: z.enum(['repair', 'service']).default('repair'),
@@ -39,6 +40,7 @@ const CreateOrderSchema = z.object({
   discount: z.number().default(0),
   adminComment: z.string().optional(),
   customFields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  acceptedAt: z.string().optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -62,12 +64,13 @@ export async function GET(req: NextRequest) {
   if (locationId) filter.locationId = locationId
   if (type) filter.type = type
   if (search) {
+    const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     filter.$or = [
-      { number: { $regex: search, $options: 'i' } },
-      { clientName: { $regex: search, $options: 'i' } },
-      { clientPhone: { $regex: search, $options: 'i' } },
-      { deviceModel: { $regex: search, $options: 'i' } },
-      { deviceImei: { $regex: search, $options: 'i' } },
+      { number: { $regex: escaped, $options: 'i' } },
+      { clientName: { $regex: escaped, $options: 'i' } },
+      { clientPhone: { $regex: escaped, $options: 'i' } },
+      { deviceModel: { $regex: escaped, $options: 'i' } },
+      { deviceImei: { $regex: escaped, $options: 'i' } },
     ]
   }
 
@@ -94,11 +97,12 @@ export async function POST(req: NextRequest) {
 
     await connectToDatabase()
 
-    const company = await Company.findOne()
+    const company = await Company.findOneAndUpdate(
+      {},
+      { $inc: { orderCounter: 1 } },
+      { new: true }
+    )
     if (!company) return err('Компания не настроена', 500)
-
-    company.orderCounter += 1
-    await company.save()
 
     const number = `${company.orderPrefix}-${String(company.orderCounter).padStart(6, '0')}`
 
@@ -154,7 +158,7 @@ export async function POST(req: NextRequest) {
       adminComment: data.adminComment,
       receivedByName: session!.user.name ?? 'Система',
       receivedById: session!.user.id,
-      acceptedAt: new Date(),
+      acceptedAt: data.acceptedAt ? new Date(data.acceptedAt) : new Date(),
       createdBy: session!.user.id,
       statusHistory: [
         {
@@ -169,6 +173,15 @@ export async function POST(req: NextRequest) {
     await Client.findByIdAndUpdate(clientId, {
       $inc: { totalOrders: 1 },
       $set: { lastOrderDate: new Date() },
+    })
+
+    await Notification.create({
+      type: 'order_new',
+      title: `Новый заказ ${number}`,
+      body: `${data.clientName} — ${data.deviceType}${data.deviceBrand ? ` ${data.deviceBrand}` : ''}${data.deviceModel ? ` ${data.deviceModel}` : ''}`,
+      link: `/orders/${order._id.toString()}`,
+      orderId: order._id,
+      orderNumber: number,
     })
 
     return ok(order, 201)

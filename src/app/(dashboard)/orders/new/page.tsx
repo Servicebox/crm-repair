@@ -5,6 +5,21 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, User, Smartphone, Wrench, CreditCard, Plus, X, Loader2, SlidersHorizontal, CheckCircle, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { DEVICE_TYPES, DEFECT_TEMPLATES, SOURCES, ACCESSORY_TEMPLATES, CONDITION_TEMPLATES } from '@/constants/orders'
+
+const SERVICE_TEMPLATES = [
+  'Чистка от пыли',
+  'Замена термопасты',
+  'Установка ПО',
+  'Удаление вирусов',
+  'Настройка системы',
+  'Восстановление данных',
+  'Переустановка ОС',
+  'Диагностика',
+  'Смазка петель',
+  'Консультация',
+  'Настройка сети',
+  'Резервное копирование',
+]
 import { cn } from '@/lib/utils'
 
 type ChecklistValue = 'ok' | 'defect' | 'na'
@@ -49,7 +64,7 @@ export default function NewOrderPage() {
 
   const [defect, setDefect] = useState('')
   const [priority, setPriority] = useState('normal')
-  const [clientType, setClientType] = useState('b2c')
+  const [clientType, setClientType] = useState('individual')
   const [dueDate, setDueDate] = useState(() => {
     const d = new Date(); d.setDate(d.getDate() + 4)
     return d.toISOString().split('T')[0]
@@ -75,6 +90,12 @@ export default function NewOrderPage() {
   const [printReceipt, setPrintReceipt] = useState(false)
   const [printAct, setPrintAct] = useState(false)
   const [printLabel, setPrintLabel] = useState(false)
+
+  const [acceptedAt, setAcceptedAt] = useState(() => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  })
 
   const { data: employees } = useQuery({
     queryKey: ['employees'],
@@ -135,18 +156,26 @@ export default function NewOrderPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!clientName || !deviceType || !defect) {
-      setError('Заполните обязательные поля: клиент, тип устройства, неисправность')
+    const nameForValidation = clientName || clientPhone || (orderType === 'service' ? 'Клиент' : '')
+    if (!nameForValidation || !deviceType || !defect) {
+      setError('Заполните обязательные поля: тип устройства и описание')
       return
     }
     setLoading(true)
     setError('')
 
+    const isService = orderType === 'service'
     const payload = {
       type: orderType,
-      clientName, clientPhone, clientEmail, source,
-      deviceType, deviceBrand, deviceModel, deviceColor,
-      deviceSerial, deviceImei, devicePassword, deviceCondition, deviceAccessories,
+      clientName: clientName || clientPhone || 'Клиент',
+      clientPhone, clientEmail, source,
+      deviceType, deviceBrand, deviceModel,
+      deviceColor: isService ? undefined : deviceColor,
+      deviceSerial: isService ? undefined : deviceSerial,
+      deviceImei: isService ? undefined : deviceImei,
+      devicePassword: isService ? undefined : devicePassword,
+      deviceCondition: isService ? undefined : deviceCondition,
+      deviceAccessories: isService ? undefined : deviceAccessories,
       defectDescription: defect,
       priority, clientType,
       masterId: masterId || undefined,
@@ -157,9 +186,10 @@ export default function NewOrderPage() {
       prepayment,
       prepaymentReceived,
       adminComment,
-      checklist: checklistSkipped ? {} : checklist,
-      customChecklistItems: customItems,
+      checklist: (isService || checklistSkipped) ? {} : checklist,
+      customChecklistItems: isService ? [] : customItems,
       customFields: customFields.filter(f => f.label.trim() && f.value.trim()),
+      acceptedAt: acceptedAt || undefined,
     }
 
     const res = await fetch('/api/orders', {
@@ -203,20 +233,31 @@ export default function NewOrderPage() {
         </div>
       )}
 
-      {/* Order type */}
-      <div className="flex border rounded-lg overflow-hidden mb-6 w-fit">
-        {(['repair', 'service'] as OrderType[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setOrderType(t)}
-            className={cn(
-              'px-6 py-2 text-sm font-medium transition',
-              orderType === t ? 'bg-blue-600 text-white' : 'hover:bg-accent'
-            )}
-          >
-            {t === 'repair' ? 'Ремонт' : 'Услуга'}
-          </button>
-        ))}
+      {/* Order type + accepted date */}
+      <div className="flex flex-wrap items-center gap-4 mb-6">
+        <div className="flex border rounded-lg overflow-hidden w-fit">
+          {(['repair', 'service'] as OrderType[]).map(t => (
+            <button
+              key={t}
+              onClick={() => setOrderType(t)}
+              className={cn(
+                'px-6 py-2 text-sm font-medium transition',
+                orderType === t ? 'bg-blue-600 text-white' : 'hover:bg-accent'
+              )}
+            >
+              {t === 'repair' ? 'Ремонт' : 'Услуга'}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-muted-foreground whitespace-nowrap">Дата приёмки:</label>
+          <input
+            type="datetime-local"
+            value={acceptedAt}
+            onChange={e => setAcceptedAt(e.target.value)}
+            className="px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -229,13 +270,17 @@ export default function NewOrderPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">ФИО клиента <span className="text-red-500">*</span></label>
+              <label className="block text-sm font-medium mb-1">
+                ФИО клиента
+                {orderType === 'repair' && <span className="text-red-500"> *</span>}
+                {orderType === 'service' && <span className="text-muted-foreground text-xs ml-1">(необязательно)</span>}
+              </label>
               <input
                 value={clientName}
                 onChange={e => setClientName(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Иванов Иван Иванович"
-                required
+                required={orderType === 'repair'}
               />
             </div>
             <div>
@@ -325,107 +370,116 @@ export default function NewOrderPage() {
                 placeholder="iPhone 14 Pro Max"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Цвет</label>
-              <input
-                value={deviceColor}
-                onChange={e => setDeviceColor(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="Чёрный"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Серийный номер</label>
-              <input
-                value={deviceSerial}
-                onChange={e => setDeviceSerial(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="F2L..., R58..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">IMEI</label>
-              <input
-                value={deviceImei}
-                onChange={e => setDeviceImei(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="350..."
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Пароль устройства</label>
-              <input
-                value={devicePassword}
-                onChange={e => setDevicePassword(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="Если нужен для диагностики"
-              />
-            </div>
+
+            {orderType === 'repair' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Цвет</label>
+                  <input
+                    value={deviceColor}
+                    onChange={e => setDeviceColor(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="Чёрный"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Серийный номер</label>
+                  <input
+                    value={deviceSerial}
+                    onChange={e => setDeviceSerial(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="F2L..., R58..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">IMEI</label>
+                  <input
+                    value={deviceImei}
+                    onChange={e => setDeviceImei(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="350..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Пароль устройства</label>
+                  <input
+                    value={devicePassword}
+                    onChange={e => setDevicePassword(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    placeholder="Если нужен для диагностики"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Внешнее состояние</label>
-            <textarea
-              value={deviceCondition}
-              onChange={e => setDeviceCondition(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              rows={2}
-              placeholder="Царапины, сколы, трещины..."
-            />
-            <div className="flex flex-wrap gap-1 mt-1">
-              {CONDITION_TEMPLATES.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => addCondition(t)}
-                  className="px-2 py-0.5 text-xs border rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+          {orderType === 'repair' && (
+            <>
+              <div className="mb-4">
+                <label className="block text-sm font-medium mb-1">Внешнее состояние</label>
+                <textarea
+                  value={deviceCondition}
+                  onChange={e => setDeviceCondition(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  rows={2}
+                  placeholder="Царапины, сколы, трещины..."
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {CONDITION_TEMPLATES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => addCondition(t)}
+                      className="px-2 py-0.5 text-xs border rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Комплектация</label>
-            <input
-              value={deviceAccessories}
-              onChange={e => setDeviceAccessories(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-              placeholder="Чехол, зарядка, коробка..."
-            />
-            <div className="flex flex-wrap gap-1 mt-1">
-              {ACCESSORY_TEMPLATES.map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => addAccessory(t)}
-                  className="px-2 py-0.5 text-xs border rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Комплектация</label>
+                <input
+                  value={deviceAccessories}
+                  onChange={e => setDeviceAccessories(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  placeholder="Чехол, зарядка, коробка..."
+                />
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {ACCESSORY_TEMPLATES.map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => addAccessory(t)}
+                      className="px-2 py-0.5 text-xs border rounded-full hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition"
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </section>
 
-        {/* Defect */}
+        {/* Defect / Service */}
         <section className="bg-card border rounded-xl p-4 md:p-6">
           <h2 className="flex items-center gap-2 font-semibold mb-4">
             <Wrench className="w-5 h-5 text-blue-500" />
-            Неисправность
+            {orderType === 'repair' ? 'Неисправность' : 'Услуга'}
           </h2>
 
           <div className="mb-4">
             <div className="flex flex-wrap gap-1 mb-2">
-              {DEFECT_TEMPLATES.map(t => (
+              {(orderType === 'repair' ? DEFECT_TEMPLATES : SERVICE_TEMPLATES).map(t => (
                 <button
                   key={t}
                   type="button"
-                  onClick={() => setDefect(t)}
+                  onClick={() => setDefect(prev => prev ? `${prev}, ${t}` : t)}
                   className={cn(
                     'px-2 py-0.5 text-xs border rounded-full transition',
-                    defect === t
+                    defect.includes(t)
                       ? 'bg-blue-600 text-white border-blue-600'
                       : 'hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700'
                   )}
@@ -434,13 +488,18 @@ export default function NewOrderPage() {
                 </button>
               ))}
             </div>
-            <label className="block text-sm font-medium mb-1">Описание неисправности <span className="text-red-500">*</span></label>
+            <label className="block text-sm font-medium mb-1">
+              {orderType === 'repair' ? 'Описание неисправности' : 'Что нужно сделать'}
+              {' '}<span className="text-red-500">*</span>
+            </label>
             <textarea
               value={defect}
               onChange={e => setDefect(e.target.value)}
               className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               rows={3}
-              placeholder="Не включается, разбит экран, не заряжается..."
+              placeholder={orderType === 'repair'
+                ? 'Не включается, разбит экран, не заряжается...'
+                : 'Опишите, что нужно сделать...'}
               required
             />
           </div>
@@ -466,8 +525,9 @@ export default function NewOrderPage() {
                 onChange={e => setClientType(e.target.value)}
                 className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
               >
-                <option value="b2c">Клиент (B2C)</option>
-                <option value="b2b">Компания (B2B)</option>
+                <option value="individual">Физлицо</option>
+                <option value="ip">ИП</option>
+                <option value="company">ООО / Организация</option>
               </select>
             </div>
             <div>
@@ -545,8 +605,8 @@ export default function NewOrderPage() {
           )}
         </section>
 
-        {/* Checklist */}
-        <section className="bg-card border rounded-xl p-4 md:p-6">
+        {/* Checklist — only for repair */}
+        {orderType === 'repair' && <section className="bg-card border rounded-xl p-4 md:p-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold">Осмотр при приёмке</h2>
             <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
@@ -615,7 +675,7 @@ export default function NewOrderPage() {
               </div>
             </>
           )}
-        </section>
+        </section>}
 
         {/* Custom Fields */}
         <section className="bg-card border rounded-xl p-4 md:p-6">

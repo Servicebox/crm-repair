@@ -36,11 +36,17 @@ interface GlobalConfig {
   taxSystem: TaxSystem
 }
 
+interface TerminalConfig {
+  url: string
+  type: 'lifepay' | 'custom'
+}
+
 interface CashierSettings {
   atol: AtolConfig
   evoter: EvoterConfig
   cloudKassir: CloudKassirConfig
   global: GlobalConfig
+  terminal?: TerminalConfig
 }
 
 // ---------------------------------------------------------------------------
@@ -142,11 +148,14 @@ function Field({
 // Page
 // ---------------------------------------------------------------------------
 
+const DEFAULT_TERMINAL: TerminalConfig = { url: '', type: 'custom' }
+
 export default function CashierSettingsPage() {
   const [atol, setAtol] = useState<AtolConfig>(DEFAULT_ATOL)
   const [evoter, setEvoter] = useState<EvoterConfig>(DEFAULT_EVOTER)
   const [cloudKassir, setCloudKassir] = useState<CloudKassirConfig>(DEFAULT_CLOUD_KASSIR)
   const [global, setGlobal] = useState<GlobalConfig>(DEFAULT_GLOBAL)
+  const [terminal, setTerminal] = useState<TerminalConfig>(DEFAULT_TERMINAL)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -161,6 +170,7 @@ export default function CashierSettingsPage() {
           setEvoter(json.data.evoter ?? DEFAULT_EVOTER)
           setCloudKassir(json.data.cloudKassir ?? DEFAULT_CLOUD_KASSIR)
           setGlobal(json.data.global ?? DEFAULT_GLOBAL)
+          setTerminal(json.data.terminal ?? DEFAULT_TERMINAL)
         }
       } catch {
         // use defaults on error
@@ -177,7 +187,7 @@ export default function CashierSettingsPage() {
       await fetch('/api/settings/cashier', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ atol, evoter, cloudKassir, global }),
+        body: JSON.stringify({ atol, evoter, cloudKassir, global, terminal }),
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -324,6 +334,41 @@ export default function CashierSettingsPage() {
                   <p>или <code className="bg-muted px-1 rounded font-mono">https://api.ofd.ru/api/kkt/v2/</code></p>
                 </div>
               </div>
+            )}
+          </section>
+
+          {/* Terminal / Acquiring */}
+          <section className="bg-card border rounded-xl p-5 space-y-4">
+            <h2 className="font-semibold text-base flex items-center gap-2">
+              <Receipt className="w-4 h-4 text-blue-500" /> Терминал оплаты (эквайринг)
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Укажите URL локального API вашего терминала (LifePay, Сбербанк, Тинькофф и др.).
+              Если поле пустое — при нажатии «Через терминал» откроется ручное подтверждение.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Тип терминала</label>
+                <select
+                  value={terminal.type}
+                  onChange={e => setTerminal(p => ({ ...p, type: e.target.value as 'lifepay' | 'custom' }))}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="custom">Произвольный (JSON POST)</option>
+                  <option value="lifepay">LifePay (localhost:8080)</option>
+                </select>
+              </div>
+              <Field
+                label="URL терминала"
+                value={terminal.url}
+                onChange={v => setTerminal(p => ({ ...p, url: v }))}
+                placeholder={terminal.type === 'lifepay' ? 'http://localhost:8080/pay' : 'http://192.168.1.100:8080/api/payment'}
+              />
+            </div>
+            {terminal.type === 'lifepay' && !terminal.url && (
+              <p className="text-xs text-muted-foreground">
+                LifePay по умолчанию: <code className="bg-muted px-1 rounded font-mono">http://localhost:8080/pay</code>
+              </p>
             )}
           </section>
 

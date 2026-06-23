@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Email уже зарегистрирован' }, { status: 409 })
     }
 
-    const isFirstUser = (await User.countDocuments()) === 0
+    const existingCompany = await Company.findOne().select('_id').lean()
+    const isFirstUser = !existingCompany
 
     const token = crypto.randomBytes(32).toString('hex')
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -44,7 +45,8 @@ export async function POST(req: NextRequest) {
     } else {
       try {
         await sendVerificationEmail(data.email, token, data.name)
-      } catch {
+      } catch (emailError) {
+        console.error('Failed to send verification email:', emailError)
       }
     }
 

@@ -1,5 +1,14 @@
 import nodemailer from 'nodemailer'
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT) || 587,
@@ -18,7 +27,7 @@ export async function sendVerificationEmail(email: string, token: string, name: 
     subject: 'Подтвердите email — ServiceBox CRM',
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
-        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Добро пожаловать, ${name}!</h1>
+        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Добро пожаловать, ${escapeHtml(name)}!</h1>
         <p style="color:#64748b;margin:0 0 24px">Подтвердите ваш email-адрес, чтобы завершить регистрацию в ServiceBox CRM.</p>
         <a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px">Подтвердить email</a>
         <p style="color:#94a3b8;font-size:13px;margin:24px 0 0">Если вы не регистрировались, просто проигнорируйте это письмо.</p>
@@ -58,11 +67,11 @@ export async function sendOrderStatusNotification(
     subject: `Заказ ${orderNumber} — обновление статуса`,
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
-        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Здравствуйте, ${clientName}!</h1>
-        <p style="color:#64748b;margin:0 0 16px">Статус вашего заказа <strong>${orderNumber}</strong> обновлён.</p>
+        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Здравствуйте, ${escapeHtml(clientName)}!</h1>
+        <p style="color:#64748b;margin:0 0 16px">Статус вашего заказа <strong>${escapeHtml(orderNumber)}</strong> обновлён.</p>
         <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:16px;margin:0 0 16px">
-          <p style="margin:0;font-weight:600;color:#0369a1">Новый статус: ${status}</p>
-          ${message ? `<p style="margin:8px 0 0;color:#0369a1">${message}</p>` : ''}
+          <p style="margin:0;font-weight:600;color:#0369a1">Новый статус: ${escapeHtml(status)}</p>
+          ${message ? `<p style="margin:8px 0 0;color:#0369a1">${escapeHtml(message)}</p>` : ''}
         </div>
         <a href="${process.env.NEXTAUTH_URL}/track/${orderNumber}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px">Отследить заказ</a>
       </div>

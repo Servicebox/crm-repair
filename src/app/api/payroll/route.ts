@@ -48,10 +48,14 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = {}
 
-  if (isPrivileged && userIdParam) {
-    filter.userId = new mongoose.Types.ObjectId(userIdParam)
-  } else if (!isPrivileged) {
-    filter.userId = new mongoose.Types.ObjectId(session!.user.id)
+  try {
+    if (isPrivileged && userIdParam) {
+      filter.userId = new mongoose.Types.ObjectId(userIdParam)
+    } else if (!isPrivileged) {
+      filter.userId = new mongoose.Types.ObjectId(session!.user.id)
+    }
+  } catch {
+    return err('Неверный идентификатор пользователя', 400)
   }
 
   if (monthParam) {
@@ -88,18 +92,26 @@ export async function POST(req: NextRequest) {
   const startDate = new Date(year, monthNum - 1, 1)
   const endDate = new Date(year, monthNum, 1)
 
+  let masterId: mongoose.Types.ObjectId
+  try {
+    masterId = new mongoose.Types.ObjectId(targetUserId)
+  } catch {
+    return err('Неверный идентификатор сотрудника', 400)
+  }
+
   const orders = await Order.find({
-    masterId: new mongoose.Types.ObjectId(targetUserId),
+    masterId,
+    status: 'issued',
     createdAt: { $gte: startDate, $lt: endDate },
   }).lean()
 
   const ordersCount = orders.length
   const worksCount = orders.reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
-  const revenue = orders.reduce((sum, o) => sum + (o.estimatedCost ?? 0), 0)
-  // Profit approximation: revenue minus parts cost
+  const revenue = orders.reduce((sum, o) => sum + (o.finalCost ?? 0), 0)
+  // Profit approximation: finalCost minus parts cost
   const profit = orders.reduce((sum, o) => {
     const partsCost = (o.parts ?? []).reduce((ps: number, p: { cost: number; quantity: number }) => ps + p.cost * p.quantity, 0)
-    return sum + (o.estimatedCost ?? 0) - partsCost
+    return sum + (o.finalCost ?? 0) - partsCost
   }, 0)
 
   const accrued = calculateAccrued(
