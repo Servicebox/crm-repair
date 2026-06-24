@@ -24,8 +24,8 @@ export interface IProduct extends Document {
 const ProductSchema = new Schema<IProduct>(
   {
     name: { type: String, required: true },
-    sku: { type: String, unique: true, sparse: true },
-    barcode: { type: String, unique: true, sparse: true },
+    sku: { type: String, unique: true, sparse: true, set: (v: string) => v === '' ? undefined : v },
+    barcode: { type: String, unique: true, sparse: true, set: (v: string) => v === '' ? undefined : v },
     category: String,
     description: String,
     productType: { type: String, enum: ['part', 'product'], default: 'part' },

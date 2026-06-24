@@ -240,7 +240,6 @@ const OrderSchema = new Schema<IOrder>(
   { timestamps: true }
 )
 
-OrderSchema.index({ number: 1 })
 OrderSchema.index({ clientId: 1 })
 OrderSchema.index({ masterId: 1 })
 OrderSchema.index({ status: 1 })
