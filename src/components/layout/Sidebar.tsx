@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
+import { useSidebar } from '@/lib/sidebar-context'
 import {
   Home, ClipboardList, Users, Package, DollarSign, BarChart2,
   Settings, HelpCircle, Bell, Shield, FileText, Upload,
@@ -146,8 +147,79 @@ function NavItemComponent({ item, depth = 0 }: { item: NavItem; depth?: number }
   )
 }
 
+function SidebarContent({
+  collapsed,
+  darkMode,
+  toggleDarkMode,
+  onNavClick,
+}: {
+  collapsed: boolean
+  darkMode: boolean
+  toggleDarkMode: () => void
+  onNavClick?: () => void
+}) {
+  return (
+    <>
+      <nav className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-0.5" onClick={onNavClick}>
+        {!collapsed &&
+          NAV.map(item => (
+            <NavItemComponent key={item.href ?? item.label} item={item} />
+          ))}
+        {collapsed &&
+          NAV.flatMap(item =>
+            item.children
+              ? item.children.map(child => (
+                  <Link
+                    key={child.href}
+                    href={child.href ?? '#'}
+                    title={child.label}
+                    className="flex items-center justify-center p-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <child.icon className="w-5 h-5" />
+                  </Link>
+                ))
+              : [
+                  <Link
+                    key={item.href}
+                    href={item.href ?? '#'}
+                    title={item.label}
+                    className="flex items-center justify-center p-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                  >
+                    <item.icon className="w-5 h-5" />
+                  </Link>,
+                ]
+          )}
+      </nav>
+
+      <div className="p-2 border-t border-sidebar-border space-y-0.5 shrink-0">
+        <button
+          onClick={toggleDarkMode}
+          className={cn(
+            'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
+            collapsed && 'justify-center'
+          )}
+        >
+          {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          {!collapsed && <span>{darkMode ? 'Светлая' : 'Тёмная'}</span>}
+        </button>
+        <button
+          onClick={() => signOut({ callbackUrl: '/login' })}
+          className={cn(
+            'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors',
+            collapsed && 'justify-center'
+          )}
+        >
+          <LogOut className="w-4 h-4" />
+          {!collapsed && <span>Выйти</span>}
+        </button>
+      </div>
+    </>
+  )
+}
+
 export default function Sidebar() {
   const { data: session } = useSession()
+  const { mobileOpen, setMobileOpen } = useSidebar()
   const [collapsed, setCollapsed] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
 
@@ -165,83 +237,73 @@ export default function Sidebar() {
           collapsed ? 'w-16' : 'w-64'
         )}
       >
-        {/* Logo */}
-        <div className="flex items-center gap-3 px-4 h-14 border-b border-sidebar-border shrink-0">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
-            <Wrench className="w-4 h-4 text-white" />
+        {collapsed ? (
+          <div className="flex items-center justify-center h-14 border-b border-sidebar-border shrink-0">
+            <button
+              onClick={() => setCollapsed(false)}
+              className="text-sidebar-foreground/50 hover:text-sidebar-foreground p-2 rounded"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
           </div>
-          {!collapsed && (
+        ) : (
+          <div className="flex items-center gap-3 px-4 h-14 border-b border-sidebar-border shrink-0">
+            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+              <Wrench className="w-4 h-4 text-white" />
+            </div>
             <div className="flex-1 min-w-0">
               <div className="font-bold text-sm text-sidebar-foreground">SERVICE BOX</div>
               <div className="text-xs text-sidebar-foreground/60 truncate">{session?.user?.name}</div>
             </div>
-          )}
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="text-sidebar-foreground/50 hover:text-sidebar-foreground p-1 rounded"
-          >
-            <Menu className="w-4 h-4" />
-          </button>
-        </div>
+            <button
+              onClick={() => setCollapsed(true)}
+              className="text-sidebar-foreground/50 hover:text-sidebar-foreground p-1 rounded"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
-        {/* Nav */}
-        <nav className="flex-1 overflow-y-auto scrollbar-thin p-2 space-y-0.5">
-          {!collapsed &&
-            NAV.map(item => (
-              <NavItemComponent key={item.href ?? item.label} item={item} />
-            ))}
-          {collapsed &&
-            NAV.flatMap(item =>
-              item.children
-                ? item.children.map(child => (
-                    <Link
-                      key={child.href}
-                      href={child.href ?? '#'}
-                      title={child.label}
-                      className="flex items-center justify-center p-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                    >
-                      <child.icon className="w-5 h-5" />
-                    </Link>
-                  ))
-                : [
-                    <Link
-                      key={item.href}
-                      href={item.href ?? '#'}
-                      title={item.label}
-                      className="flex items-center justify-center p-2.5 rounded-lg text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                    >
-                      <item.icon className="w-5 h-5" />
-                    </Link>,
-                  ]
-            )}
-        </nav>
-
-        {/* Footer */}
-        <div className="p-2 border-t border-sidebar-border space-y-0.5 shrink-0">
-          <button
-            onClick={toggleDarkMode}
-            className={cn(
-              'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors',
-              collapsed && 'justify-center'
-            )}
-          >
-            {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {!collapsed && <span>{darkMode ? 'Светлая' : 'Тёмная'}</span>}
-          </button>
-          <button
-            onClick={() => signOut({ callbackUrl: '/login' })}
-            className={cn(
-              'w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm text-red-400 hover:text-red-300 hover:bg-red-950/30 transition-colors',
-              collapsed && 'justify-center'
-            )}
-          >
-            <LogOut className="w-4 h-4" />
-            {!collapsed && <span>Выйти</span>}
-          </button>
-        </div>
+        <SidebarContent
+          collapsed={collapsed}
+          darkMode={darkMode}
+          toggleDarkMode={toggleDarkMode}
+        />
       </aside>
 
-      {/* Mobile: bottom nav handled by Header */}
+      {/* Mobile sidebar drawer */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setMobileOpen(false)}
+          />
+          <aside className="absolute left-0 top-0 bottom-0 w-72 flex flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
+            <div className="flex items-center gap-3 px-4 h-14 border-b border-sidebar-border shrink-0">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shrink-0">
+                <Wrench className="w-4 h-4 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="font-bold text-sm text-sidebar-foreground">SERVICE BOX</div>
+                <div className="text-xs text-sidebar-foreground/60 truncate">{session?.user?.name}</div>
+              </div>
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="text-sidebar-foreground/50 hover:text-sidebar-foreground p-1 rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <SidebarContent
+              collapsed={false}
+              darkMode={darkMode}
+              toggleDarkMode={toggleDarkMode}
+              onNavClick={() => setMobileOpen(false)}
+            />
+          </aside>
+        </div>
+      )}
     </>
   )
 }

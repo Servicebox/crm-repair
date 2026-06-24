@@ -1,11 +1,28 @@
 'use client'
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { RotateCcw, Search, Phone, Mail, MessageCircle, TrendingDown, Users, Clock, DollarSign, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { format, subDays, subMonths } from 'date-fns'
+import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
 
 type RiskLevel = 'high' | 'medium' | 'low'
+
+type ProcessedClient = {
+  _id: string
+  id: string
+  name: string
+  phone: string
+  email?: string
+  totalOrders: number
+  totalSpent: number
+  totalRevenue?: number
+  lastOrderDate?: string
+  createdAt: string
+  daysSince: number
+  risk: RiskLevel
+  lastVisit: Date
+}
 
 const RISK_COLORS: Record<RiskLevel, string> = {
   high: 'text-red-600 bg-red-50 border-red-200',
@@ -19,17 +36,7 @@ const RISK_LABELS: Record<RiskLevel, string> = {
   low: 'Низкий',
 }
 
-const now = new Date()
-const CLIENTS = [
-  { id: '1', name: 'Иванов Иван Сергеевич', phone: '+7 999 123 45 67', email: 'ivan@mail.ru', lastVisit: subDays(now, 180), totalOrders: 8, totalSpent: 42000, risk: 'high' as RiskLevel, daysSince: 180 },
-  { id: '2', name: 'Петрова Мария Анатольевна', phone: '+7 921 456 78 90', email: 'maria@gmail.com', lastVisit: subDays(now, 95), totalOrders: 5, totalSpent: 28500, risk: 'medium' as RiskLevel, daysSince: 95 },
-  { id: '3', name: 'Сидоров Алексей Дмитриевич', phone: '+7 903 789 01 23', email: '', lastVisit: subDays(now, 210), totalOrders: 12, totalSpent: 67800, risk: 'high' as RiskLevel, daysSince: 210 },
-  { id: '4', name: 'Козлова Елена Игоревна', phone: '+7 916 234 56 78', email: 'elena@yandex.ru', lastVisit: subDays(now, 65), totalOrders: 3, totalSpent: 14200, risk: 'low' as RiskLevel, daysSince: 65 },
-  { id: '5', name: 'Новиков Дмитрий Валерьевич', phone: '+7 925 345 67 89', email: '', lastVisit: subDays(now, 145), totalOrders: 7, totalSpent: 38900, risk: 'high' as RiskLevel, daysSince: 145 },
-  { id: '6', name: 'Морозова Ольга Петровна', phone: '+7 967 456 78 90', email: 'olga@mail.ru', lastVisit: subDays(now, 78), totalOrders: 4, totalSpent: 22100, risk: 'medium' as RiskLevel, daysSince: 78 },
-  { id: '7', name: 'Волков Сергей Николаевич', phone: '+7 985 567 89 01', email: 'sergey@gmail.com', lastVisit: subDays(now, 320), totalOrders: 15, totalSpent: 89500, risk: 'high' as RiskLevel, daysSince: 320 },
-  { id: '8', name: 'Лебедева Анна Юрьевна', phone: '+7 915 678 90 12', email: '', lastVisit: subDays(now, 55), totalOrders: 2, totalSpent: 8400, risk: 'low' as RiskLevel, daysSince: 55 },
-]
+const DEVICE_BRANDS = ['Apple', 'Samsung', 'Xiaomi', 'Huawei', 'OPPO', 'Realme', 'Vivo', 'Nokia', 'Honor', 'Lenovo', 'HP', 'Dell', 'ASUS', 'Acer', 'MSI']
 
 const REACTIVATION_TEMPLATES = [
   { id: 'sms', label: 'SMS', icon: MessageCircle, text: 'Иван, давно не видели вас в нашем сервисе! Для вас скидка 10% на следующий ремонт. Ждём вас в SERVICE BOX 📱' },
@@ -45,8 +52,27 @@ export default function ClientsReturnPage() {
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
 
-  const filtered = CLIENTS.filter(c => {
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.phone.includes(search)
+  const { data: clientsData, isLoading } = useQuery({
+    queryKey: ['clients-return'],
+    queryFn: async () => {
+      const res = await fetch('/api/clients?limit=200')
+      const json = await res.json()
+      return json.data?.clients ?? []
+    },
+  })
+
+  const now = new Date()
+  const processedClients: ProcessedClient[] = (clientsData ?? [])
+    .map((c: ProcessedClient) => {
+      const lastDate = c.lastOrderDate ? new Date(c.lastOrderDate) : new Date(c.createdAt)
+      const daysSince = Math.floor((now.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24))
+      const risk: RiskLevel = daysSince > 180 ? 'high' : daysSince > 60 ? 'medium' : 'low'
+      return { ...c, id: c._id, daysSince, risk, lastVisit: lastDate, totalSpent: c.totalRevenue ?? 0 }
+    })
+    .filter((c: ProcessedClient) => c.daysSince >= 45)
+
+  const filtered = processedClients.filter((c: ProcessedClient) => {
+    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || (c.phone ?? '').includes(search)
     const matchRisk = !filterRisk || c.risk === filterRisk
     return matchSearch && matchRisk
   })
@@ -56,7 +82,7 @@ export default function ClientsReturnPage() {
   }
 
   function toggleAll() {
-    setSelected(p => p.length === filtered.length ? [] : filtered.map(c => c.id))
+    setSelected(p => p.length === filtered.length ? [] : filtered.map((c: ProcessedClient) => c.id))
   }
 
   async function sendCampaign() {
@@ -69,9 +95,11 @@ export default function ClientsReturnPage() {
     setTimeout(() => setSent(false), 3000)
   }
 
-  const highRisk = CLIENTS.filter(c => c.risk === 'high').length
-  const totalLostRevenue = CLIENTS.reduce((s, c) => s + c.totalSpent, 0)
-  const avgDaysSince = Math.round(CLIENTS.reduce((s, c) => s + c.daysSince, 0) / CLIENTS.length)
+  const highRisk = processedClients.filter(c => c.risk === 'high').length
+  const totalLostRevenue = processedClients.reduce((s, c) => s + (c.totalSpent ?? 0), 0)
+  const avgDaysSince = processedClients.length > 0
+    ? Math.round(processedClients.reduce((s, c) => s + c.daysSince, 0) / processedClients.length)
+    : 0
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto">
@@ -98,7 +126,7 @@ export default function ClientsReturnPage() {
             <Users className="w-4 h-4" />
             <span className="text-xs font-medium">Неактивных</span>
           </div>
-          <div className="text-2xl font-bold">{CLIENTS.length}</div>
+          <div className="text-2xl font-bold">{processedClients.length}</div>
           <div className="text-xs text-muted-foreground">за 2+ мес.</div>
         </div>
         <div className="bg-card border rounded-xl p-4">
@@ -165,7 +193,13 @@ export default function ClientsReturnPage() {
 
           {/* Clients */}
           <div className="space-y-2">
-            {filtered.map(client => (
+            {isLoading && (
+              <div className="flex items-center justify-center py-12 text-muted-foreground">
+                <span className="w-5 h-5 border-2 border-muted border-t-blue-500 rounded-full animate-spin mr-2" />
+                Загрузка клиентов...
+              </div>
+            )}
+            {!isLoading && filtered.map(client => (
               <div
                 key={client.id}
                 className={cn(
@@ -262,6 +296,17 @@ export default function ClientsReturnPage() {
               <li>• Сезонное предложение: чистка перед летом</li>
               <li>• Напомните про гарантийное обслуживание</li>
             </ul>
+          </div>
+
+          <div className="bg-card border rounded-xl p-4">
+            <h3 className="font-semibold mb-3 text-sm">Производители устройств</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {DEVICE_BRANDS.map(brand => (
+                <span key={brand} className="text-xs px-2 py-1 bg-muted rounded-full border">
+                  {brand}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
       </div>

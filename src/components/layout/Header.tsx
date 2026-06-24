@@ -4,7 +4,8 @@ import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Bell, Plus, User } from 'lucide-react'
+import { Search, Bell, Plus, User, Menu } from 'lucide-react'
+import { useSidebar } from '@/lib/sidebar-context'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Главная',
@@ -23,6 +24,7 @@ const PAGE_TITLES: Record<string, string> = {
 
 export default function Header() {
   const { data: session } = useSession()
+  const { setMobileOpen } = useSidebar()
   const pathname = usePathname()
   const router = useRouter()
   const [searchOpen, setSearchOpen] = useState(false)
@@ -95,6 +97,14 @@ export default function Header() {
 
   return (
     <header className="h-14 border-b bg-background/95 backdrop-blur-sm flex items-center gap-4 px-4 shrink-0">
+      <button
+        onClick={() => setMobileOpen(true)}
+        className="lg:hidden p-2 rounded-lg hover:bg-accent transition text-muted-foreground"
+        aria-label="Открыть меню"
+      >
+        <Menu className="w-5 h-5" />
+      </button>
+
       <h1 className="text-sm font-semibold text-foreground hidden lg:block">{title}</h1>
 
       <div className="flex-1" />

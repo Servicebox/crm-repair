@@ -3,6 +3,7 @@ import { SessionProvider } from 'next-auth/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import type { Session } from 'next-auth'
+import { SidebarProvider } from '@/lib/sidebar-context'
 
 export default function Providers({
   children,
@@ -22,7 +23,9 @@ export default function Providers({
 
   return (
     <SessionProvider session={session}>
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <SidebarProvider>{children}</SidebarProvider>
+      </QueryClientProvider>
     </SessionProvider>
   )
 }

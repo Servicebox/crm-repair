@@ -3,6 +3,31 @@ import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, Loader2, Building2, Palette, Bell, Wrench, Shield } from 'lucide-react'
 
+type FieldProps = {
+  label: string
+  name: string
+  type?: string
+  placeholder?: string
+  value: string
+  onChange: (val: string) => void
+}
+
+function Field({ label, name, type = 'text', placeholder, value, onChange }: FieldProps) {
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-1">{label}</label>
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder={placeholder}
+      />
+    </div>
+  )
+}
+
 const TABS = [
   { key: 'company', label: 'Компания', icon: Building2 },
   { key: 'branding', label: 'Брендинг', icon: Palette },
@@ -44,21 +69,6 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  function Field({ label, name, type = 'text', placeholder }: { label: string; name: string; type?: string; placeholder?: string }) {
-    return (
-      <div>
-        <label className="block text-sm font-medium mb-1">{label}</label>
-        <input
-          type={type}
-          value={(form[name] as string) ?? ''}
-          onChange={e => setForm(p => ({ ...p, [name]: e.target.value }))}
-          className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder={placeholder}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
@@ -95,16 +105,16 @@ export default function SettingsPage() {
           {tab === 'company' && (
             <div className="space-y-4">
               <h2 className="font-semibold text-lg mb-4">Основные данные</h2>
-              <Field label="Название компании" name="name" placeholder="ООО Сервисный центр" />
+              <Field label="Название компании" name="name" placeholder="ООО Сервисный центр" value={(form.name as string) ?? ''} onChange={val => setForm(p => ({ ...p, name: val }))} />
               <div className="grid grid-cols-2 gap-4">
-                <Field label="Телефон" name="phone" placeholder="+7 999 000 00 00" />
-                <Field label="Email" name="email" type="email" placeholder="info@service.ru" />
+                <Field label="Телефон" name="phone" placeholder="+7 999 000 00 00" value={(form.phone as string) ?? ''} onChange={val => setForm(p => ({ ...p, phone: val }))} />
+                <Field label="Email" name="email" type="email" placeholder="info@service.ru" value={(form.email as string) ?? ''} onChange={val => setForm(p => ({ ...p, email: val }))} />
               </div>
-              <Field label="Адрес" name="address" placeholder="г. Москва, ул. Тверская, д. 1" />
-              <Field label="Сайт" name="website" placeholder="https://myservice.ru" />
+              <Field label="Адрес" name="address" placeholder="г. Москва, ул. Тверская, д. 1" value={(form.address as string) ?? ''} onChange={val => setForm(p => ({ ...p, address: val }))} />
+              <Field label="Сайт" name="website" placeholder="https://myservice.ru" value={(form.website as string) ?? ''} onChange={val => setForm(p => ({ ...p, website: val }))} />
               <div className="grid grid-cols-2 gap-4">
-                <Field label="ИНН" name="inn" placeholder="1234567890" />
-                <Field label="ОГРН" name="ogrn" placeholder="1234567890123" />
+                <Field label="ИНН" name="inn" placeholder="1234567890" value={(form.inn as string) ?? ''} onChange={val => setForm(p => ({ ...p, inn: val }))} />
+                <Field label="ОГРН" name="ogrn" placeholder="1234567890123" value={(form.ogrn as string) ?? ''} onChange={val => setForm(p => ({ ...p, ogrn: val }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>

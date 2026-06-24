@@ -15,25 +15,25 @@ const CATEGORIES = [
 ]
 
 const PARTS = [
-  { id: 1, name: 'Дисплей iPhone 14 Pro Max OLED', category: 'screens', price: 4200, oldPrice: 5800, supplier: 'PartsPro', rating: 4.8, reviews: 124, inStock: true, delivery: '1-2 дня', badge: 'Хит' },
-  { id: 2, name: 'Аккумулятор iPhone 13 3227mAh', category: 'batteries', price: 890, oldPrice: 1200, supplier: 'TechStore', rating: 4.6, reviews: 87, inStock: true, delivery: '1 день', badge: 'Оригинал' },
-  { id: 3, name: 'Дисплей Samsung Galaxy S23 AMOLED', category: 'screens', price: 5600, supplier: 'SamParts', rating: 4.7, reviews: 56, inStock: true, delivery: '2-3 дня' },
-  { id: 4, name: 'Разъём зарядки iPhone 15 USB-C', category: 'charging', price: 320, supplier: 'PartsPro', rating: 4.5, reviews: 34, inStock: true, delivery: '1-2 дня' },
-  { id: 5, name: 'Аккумулятор Samsung S21 5000mAh', category: 'batteries', price: 1100, supplier: 'TechStore', rating: 4.4, reviews: 41, inStock: false, delivery: '3-5 дней' },
-  { id: 6, name: 'Дисплей Xiaomi Redmi Note 12', category: 'screens', price: 1800, supplier: 'XiaomiParts', rating: 4.3, reviews: 28, inStock: true, delivery: '2 дня' },
-  { id: 7, name: 'Набор отвёрток iFixit Pro Tech', category: 'tools', price: 3400, supplier: 'ToolMaster', rating: 4.9, reviews: 203, inStock: true, delivery: '1-2 дня', badge: 'Топ' },
-  { id: 8, name: 'Камера основная iPhone 14', category: 'cameras', price: 2800, supplier: 'PartsPro', rating: 4.6, reviews: 19, inStock: true, delivery: '2-3 дня' },
-  { id: 9, name: 'Разъём зарядки Samsung Type-C', category: 'charging', price: 280, supplier: 'SamParts', rating: 4.2, reviews: 67, inStock: true, delivery: '1 день' },
-  { id: 10, name: 'Аккумулятор MacBook Pro 13" A2338', category: 'batteries', price: 4900, oldPrice: 6200, supplier: 'MacParts', rating: 4.7, reviews: 45, inStock: true, delivery: '2-3 дня', badge: 'Скидка' },
-  { id: 11, name: 'Термопаста Arctic MX-4 4г', category: 'tools', price: 280, supplier: 'ToolMaster', rating: 4.8, reviews: 312, inStock: true, delivery: '1 день' },
-  { id: 12, name: 'Дисплей Huawei P50 Pro', category: 'screens', price: 6800, supplier: 'HuaParts', rating: 4.5, reviews: 12, inStock: false, delivery: '5-7 дней' },
+  { id: 1, name: 'Дисплей iPhone 14 Pro Max OLED', category: 'screens', price: 4200, oldPrice: 5800, supplier: 'Опт ФМ (Иваново)', rating: 4.8, reviews: 124, inStock: true, delivery: '2-3 дня', badge: 'Хит' },
+  { id: 2, name: 'Аккумулятор iPhone 13 3227mAh', category: 'batteries', price: 890, oldPrice: 1200, supplier: 'Green Spark (Вологда)', rating: 4.6, reviews: 87, inStock: true, delivery: '1-2 дня', badge: 'Оригинал' },
+  { id: 3, name: 'Дисплей Samsung Galaxy S23 AMOLED', category: 'screens', price: 5600, supplier: 'Моба (Архангельск)', rating: 4.7, reviews: 56, inStock: true, delivery: '3-4 дня' },
+  { id: 4, name: 'Разъём зарядки iPhone 15 USB-C', category: 'charging', price: 320, supplier: '05gsm', rating: 4.5, reviews: 34, inStock: true, delivery: '1-2 дня' },
+  { id: 5, name: 'Аккумулятор Samsung S21 5000mAh', category: 'batteries', price: 1100, supplier: 'Опт ФМ (Иваново)', rating: 4.4, reviews: 41, inStock: false, delivery: '3-5 дней' },
+  { id: 6, name: 'Дисплей Xiaomi Redmi Note 12', category: 'screens', price: 1800, supplier: 'Green Spark (Вологда)', rating: 4.3, reviews: 28, inStock: true, delivery: '2-3 дня' },
+  { id: 7, name: 'Набор отвёрток iFixit Pro Tech', category: 'tools', price: 3400, supplier: 'Моба (Архангельск)', rating: 4.9, reviews: 203, inStock: true, delivery: '4-5 дней', badge: 'Топ' },
+  { id: 8, name: 'Камера основная iPhone 14', category: 'cameras', price: 2800, supplier: 'Опт ФМ (Иваново)', rating: 4.6, reviews: 19, inStock: true, delivery: '2-3 дня' },
+  { id: 9, name: 'Разъём зарядки Samsung Type-C', category: 'charging', price: 280, supplier: '05gsm', rating: 4.2, reviews: 67, inStock: true, delivery: '1 день' },
+  { id: 10, name: 'Аккумулятор MacBook Pro 13" A2338', category: 'batteries', price: 4900, oldPrice: 6200, supplier: 'Green Spark (Вологда)', rating: 4.7, reviews: 45, inStock: true, delivery: '2-3 дня', badge: 'Скидка' },
+  { id: 11, name: 'Термопаста Arctic MX-4 4г', category: 'tools', price: 280, supplier: '05gsm', rating: 4.8, reviews: 312, inStock: true, delivery: '1 день' },
+  { id: 12, name: 'Дисплей Huawei P50 Pro', category: 'screens', price: 6800, supplier: 'Моба (Архангельск)', rating: 4.5, reviews: 12, inStock: false, delivery: '5-7 дней' },
 ]
 
 const SUPPLIERS = [
-  { name: 'PartsPro', rating: 4.8, orders: 1240, delivery: '1-2 дня' },
-  { name: 'TechStore', rating: 4.6, orders: 890, delivery: '1-3 дня' },
-  { name: 'SamParts', rating: 4.5, orders: 560, delivery: '2-3 дня' },
-  { name: 'ToolMaster', rating: 4.9, orders: 420, delivery: '1-2 дня' },
+  { name: 'Опт ФМ', city: 'Иваново', rating: 4.8, orders: 0, delivery: '2-3 дня', url: 'https://optfm.ru' },
+  { name: 'Green Spark', city: 'Вологда', rating: 4.6, orders: 0, delivery: '1-2 дня', url: '' },
+  { name: 'Моба', city: 'Архангельск', rating: 4.5, orders: 0, delivery: '3-5 дней', url: '' },
+  { name: '05gsm', city: '', rating: 4.7, orders: 0, delivery: '1-2 дня', url: 'https://05gsm.ru' },
 ]
 
 export default function MarketplacePage() {
@@ -211,8 +211,8 @@ export default function MarketplacePage() {
                   <Store className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <div className="font-medium text-sm">{s.name}</div>
-                  <div className="text-xs text-muted-foreground">{s.orders} заказов · {s.delivery}</div>
+                  <div className="font-medium text-sm">{s.name}{s.city && <span className="text-muted-foreground font-normal"> · {s.city}</span>}</div>
+                  <div className="text-xs text-muted-foreground">Доставка: {s.delivery}</div>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -220,10 +220,17 @@ export default function MarketplacePage() {
                   <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
                   <span className="font-medium">{s.rating}</span>
                 </div>
-                <button className="text-xs border px-3 py-1.5 rounded-lg hover:bg-accent transition flex items-center gap-1">
-                  <ExternalLink className="w-3 h-3" />
-                  Открыть
-                </button>
+                {s.url ? (
+                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-xs border px-3 py-1.5 rounded-lg hover:bg-accent transition flex items-center gap-1">
+                    <ExternalLink className="w-3 h-3" />
+                    Открыть
+                  </a>
+                ) : (
+                  <button className="text-xs border px-3 py-1.5 rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1" disabled>
+                    <ExternalLink className="w-3 h-3" />
+                    Скоро
+                  </button>
+                )}
               </div>
             </div>
           ))}
