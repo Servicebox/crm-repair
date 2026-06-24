@@ -1,6 +1,5 @@
 const express = require('express');
 const { getDb } = require('../database');
-
 const router = express.Router();
 
 router.get('/overview', (req, res) => {
