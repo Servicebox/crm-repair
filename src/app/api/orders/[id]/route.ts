@@ -22,7 +22,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 const UpdateStatusSchema = z.object({
   status: z.enum(['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled']),
   comment: z.string().optional(),
-  paymentMethod: z.enum(['cash', 'card', 'transfer', 'online']).default('cash'),
+  paymentMethod: z.enum(['cash', 'card', 'transfer', 'online', 'qr', 'invoice']).default('cash'),
 })
 
 const UpdateOrderSchema = z.object({
@@ -69,7 +69,7 @@ const UpdateOrderSchema = z.object({
   })).optional(),
   payments: z.array(z.object({
     amount: z.number(),
-    method: z.enum(['cash', 'card', 'transfer', 'online']),
+    method: z.enum(['cash', 'card', 'transfer', 'online', 'qr', 'invoice']),
     date: z.string().or(z.date()),
     note: z.string().optional(),
   })).optional(),

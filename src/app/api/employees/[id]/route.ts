@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { connectToDatabase } from '@/lib/mongodb'
 import { requireTenantRole, ok, err } from '@/lib/api-helpers'
-import User from '@/models/User'
 
 const UpdateEmployeeSchema = z.object({
   name: z.string().min(1).optional(),
@@ -48,11 +46,11 @@ function isValidObjectId(id: string) {
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
+  const { models: { User } } = auth
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
   try {
-    await connectToDatabase()
     const body = await req.json()
     const data = UpdateEmployeeSchema.parse(body)
     const user = await User.findByIdAndUpdate(
@@ -71,11 +69,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
+  const { models: { User } } = auth
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
-  await connectToDatabase()
-  const deleted = await User.findByIdAndDelete(params.id)
-  if (!deleted) return err('Сотрудник не найден', 404)
-  return ok({ deleted: true })
+  try {
+    const deleted = await User.findByIdAndDelete(params.id)
+    if (!deleted) return err('Сотрудник не найден', 404)
+    return ok({ deleted: true })
+  } catch {
+    return err('Ошибка удаления сотрудника', 500)
+  }
 }

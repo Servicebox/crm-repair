@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
-import User from '@/models/User'
 import mongoose from 'mongoose'
 
 const PostSchema = z.object({
@@ -68,7 +67,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session, models: { PayrollRecord, Order, Shift } } = authResult
+  const { session, models: { PayrollRecord, Order, Shift, User } } = authResult
 
   const body = await req.json()
   const parsed = PostSchema.safeParse(body)

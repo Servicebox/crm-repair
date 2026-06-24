@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { requireTenantAuth, ok } from '@/lib/api-helpers'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const ServiceSchema = z.object({
   name: z.string().min(1),
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const filter: Record<string, unknown> = { isActive: true }
   if (search) filter.name = { $regex: search, $options: 'i' }
-  if (deviceType) filter.$or = [{ deviceTypes: { $size: 0 } }, { deviceTypes: deviceType }]
+  if (deviceType) filter.$or = [{ deviceTypes: { $size: 0 } }, { deviceTypes: { $in: [deviceType] } }]
 
   const services = await Service.find(filter).sort({ category: 1, name: 1 }).lean()
   return ok(services)
@@ -34,8 +34,13 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
   const { models: { Service } } = auth
 
-  const body = await req.json()
-  const data = ServiceSchema.parse(body)
-  const service = await Service.create(data)
-  return ok(service, 201)
+  try {
+    const body = await req.json()
+    const data = ServiceSchema.parse(body)
+    const service = await Service.create(data)
+    return ok(service, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка создания услуги', 500)
+  }
 }

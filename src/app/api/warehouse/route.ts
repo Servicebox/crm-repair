@@ -56,8 +56,13 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
   const { models: { Product } } = auth
 
-  const body = await req.json()
-  const data = ProductSchema.parse(body)
-  const product = await Product.create(data)
-  return ok(product, 201)
+  try {
+    const body = await req.json()
+    const data = ProductSchema.parse(body)
+    const product = await Product.create(data)
+    return ok(product, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка создания товара', 500)
+  }
 }

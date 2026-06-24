@@ -1,5 +1,15 @@
 import { NextRequest } from 'next/server'
-import { requireTenantAuth, ok } from '@/lib/api-helpers'
+import { z } from 'zod'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
+
+const AuditLogSchema = z.object({
+  type: z.string().min(1),
+  action: z.string().min(1),
+  description: z.string().min(1),
+  userId: z.string().optional(),
+  userName: z.string().optional(),
+  ip: z.string().optional(),
+})
 
 export async function GET(req: NextRequest) {
   const authResult = await requireTenantAuth()
@@ -41,8 +51,13 @@ export async function POST(req: NextRequest) {
   if (authResult.error) return authResult.error
   const { models: { AuditLog } } = authResult
 
-  const body = await req.json() as Record<string, unknown>
-
-  const log = await AuditLog.create(body)
-  return ok(log, 201)
+  try {
+    const body = await req.json()
+    const data = AuditLogSchema.parse(body)
+    const log = await AuditLog.create(data)
+    return ok(log, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка создания записи', 500)
+  }
 }

@@ -1,13 +1,13 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { requireTenantAuth, ok } from '@/lib/api-helpers'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const TransactionSchema = z.object({
   type: z.enum(['income', 'expense']),
   amount: z.number().positive(),
   category: z.string().min(1),
   description: z.string().optional(),
-  paymentMethod: z.enum(['cash', 'card', 'transfer', 'online']).default('cash'),
+  paymentMethod: z.enum(['cash', 'card', 'transfer', 'online', 'qr', 'invoice']).default('cash'),
   date: z.string().optional(),
 })
 
@@ -62,12 +62,17 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
   const { models: { Transaction } } = auth
 
-  const body = await req.json()
-  const data = TransactionSchema.parse(body)
-  const tx = await Transaction.create({
-    ...data,
-    date: data.date ? new Date(data.date) : new Date(),
-    userId: auth.session!.user.id,
-  })
-  return ok(tx, 201)
+  try {
+    const body = await req.json()
+    const data = TransactionSchema.parse(body)
+    const tx = await Transaction.create({
+      ...data,
+      date: data.date ? new Date(data.date) : new Date(),
+      userId: auth.session!.user.id,
+    })
+    return ok(tx, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка создания транзакции', 500)
+  }
 }

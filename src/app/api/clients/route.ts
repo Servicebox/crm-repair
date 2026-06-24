@@ -45,9 +45,13 @@ export async function POST(req: NextRequest) {
   if (auth.error) return auth.error
   const { models: { Client } } = auth
 
-  const body = await req.json()
-  const data = ClientSchema.parse(body)
-
-  const client = await Client.create(data)
-  return ok(client, 201)
+  try {
+    const body = await req.json()
+    const data = ClientSchema.parse(body)
+    const client = await Client.create(data)
+    return ok(client, 201)
+  } catch (error) {
+    if (error instanceof z.ZodError) return err(error.errors[0].message)
+    return err('Ошибка создания клиента', 500)
+  }
 }

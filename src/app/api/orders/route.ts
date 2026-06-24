@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
     await connectToDatabase()
 
     const company = await Company.findOneAndUpdate(
-      {},
+      { dbName: session!.user.dbName },
       { $inc: { orderCounter: 1 } },
       { new: true }
     )

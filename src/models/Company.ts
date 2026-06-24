@@ -49,6 +49,8 @@ export interface ICompany extends Document {
   vkAccessToken?: string
   receptionSettings?: unknown
   labelSettings?: unknown
+  fiscalSettings?: unknown
+  cashierSettings?: unknown
   createdAt: Date
   updatedAt: Date
 }
@@ -142,6 +144,8 @@ const CompanySchema = new Schema<ICompany>(
     vkAccessToken: String,
     receptionSettings: { type: Schema.Types.Mixed, default: null },
     labelSettings: { type: Schema.Types.Mixed, default: null },
+    fiscalSettings: { type: Schema.Types.Mixed, default: null },
+    cashierSettings: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 )
