@@ -6,7 +6,7 @@ export interface IProduct extends Document {
   barcode?: string
   category?: string
   description?: string
-  productType: 'part' | 'product'
+  productType: 'part' | 'product' | 'marketplace'
   condition?: 'new' | 'used'
   location?: string
   serialTracking: boolean
@@ -15,6 +15,11 @@ export interface IProduct extends Document {
   cost: number
   price: number
   supplier?: string
+  supplierUrl?: string
+  brand?: string
+  oldPrice?: number
+  delivery?: string
+  imageUrl?: string
   locationId?: mongoose.Types.ObjectId
   isActive: boolean
   createdAt: Date
@@ -28,7 +33,7 @@ const ProductSchema = new Schema<IProduct>(
     barcode: { type: String, unique: true, sparse: true, set: (v: string) => v === '' ? undefined : v },
     category: String,
     description: String,
-    productType: { type: String, enum: ['part', 'product'], default: 'part' },
+    productType: { type: String, enum: ['part', 'product', 'marketplace'], default: 'part' },
     condition: { type: String, enum: ['new', 'used'], default: 'new' },
     location: String,
     serialTracking: { type: Boolean, default: false },
@@ -37,6 +42,11 @@ const ProductSchema = new Schema<IProduct>(
     cost: { type: Number, default: 0 },
     price: { type: Number, default: 0 },
     supplier: String,
+    supplierUrl: String,
+    brand: String,
+    oldPrice: Number,
+    delivery: String,
+    imageUrl: String,
     locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
     isActive: { type: Boolean, default: true },
   },

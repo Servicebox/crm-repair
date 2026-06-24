@@ -129,3 +129,7 @@ UserSchema.set('toJSON', {
 
 const User: Model<IUser> = mongoose.models.User ?? mongoose.model<IUser>('User', UserSchema)
 export default User
+
+export function getUserModel(conn: mongoose.Connection) {
+  return (conn.models['User'] as mongoose.Model<IUser> | undefined) ?? conn.model<IUser>('User', UserSchema)
+}

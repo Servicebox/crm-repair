@@ -1,6 +1,6 @@
 'use client'
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ShoppingBag, Plus, Search, Trash2, CreditCard, Banknote, QrCode, Loader2, CheckCircle, X, Package, Wrench, Percent } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -38,7 +38,9 @@ export default function SalesPage() {
   const [globalDiscount, setGlobalDiscount] = useState<number | ''>('')
   const [processing, setProcessing] = useState(false)
   const [done, setDone] = useState(false)
-  const [lastSaleId] = useState(() => `S-${String(Math.floor(Math.random() * 9000) + 1000)}`)
+  const [saleError, setSaleError] = useState('')
+  const [lastSaleId, setLastSaleId] = useState(`S-${String(Math.floor(Math.random() * 9000) + 1000)}`)
+  const queryClient = useQueryClient()
 
   const { data: products = [], isLoading: productsLoading } = useQuery<CatalogItem[]>({
     queryKey: ['warehouse-products-sale'],
@@ -93,9 +95,32 @@ export default function SalesPage() {
   async function handleSale() {
     if (cart.length === 0) return
     setProcessing(true)
-    await new Promise(r => setTimeout(r, 800))
-    setProcessing(false)
-    setDone(true)
+    setSaleError('')
+    try {
+      const res = await fetch('/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart,
+          payMethod,
+          clientName: clientName || undefined,
+          globalDiscount: Number(globalDiscount) || 0,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setSaleError(json.error ?? 'Ошибка оформления продажи')
+        return
+      }
+      setLastSaleId(json.data?.saleNumber ?? lastSaleId)
+      queryClient.invalidateQueries({ queryKey: ['warehouse-products-sale'] })
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] })
+      setDone(true)
+    } catch {
+      setSaleError('Ошибка сети. Попробуйте ещё раз.')
+    } finally {
+      setProcessing(false)
+    }
   }
 
   function resetSale() {
@@ -318,6 +343,12 @@ ${gDiscount > 0 ? `<div class="row"><span>Скидка на чек:</span><span>
               </button>
             ))}
           </div>
+
+          {saleError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-xs mb-2">
+              {saleError}
+            </div>
+          )}
 
           <button
             onClick={handleSale}

@@ -9,8 +9,9 @@ export interface ITransaction extends Document {
   description?: string
   orderId?: mongoose.Types.ObjectId
   orderNumber?: string
-  paymentMethod: 'cash' | 'card' | 'transfer' | 'online'
-  userId: mongoose.Types.ObjectId
+  paymentMethod: 'cash' | 'card' | 'transfer' | 'online' | 'qr' | 'invoice'
+  userId?: mongoose.Types.ObjectId
+  createdBy?: string
   locationId?: mongoose.Types.ObjectId
   date: Date
   createdAt: Date
@@ -27,10 +28,11 @@ const TransactionSchema = new Schema<ITransaction>(
     orderNumber: String,
     paymentMethod: {
       type: String,
-      enum: ['cash', 'card', 'transfer', 'online'],
+      enum: ['cash', 'card', 'transfer', 'online', 'qr', 'invoice'],
       default: 'cash',
     },
-    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    userId: { type: Schema.Types.ObjectId, ref: 'User' },
+    createdBy: { type: String },
     locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
     date: { type: Date, default: Date.now },
   },

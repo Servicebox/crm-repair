@@ -10,7 +10,7 @@ import {
   Settings, HelpCircle, Bell, Shield, FileText, Upload,
   Wrench, ShoppingBag, Store, MessageCircle, TrendingUp,
   ChevronDown, ChevronRight, LogOut, User, Bot, RotateCcw,
-  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt, Clock,
+  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt, Clock, Globe,
 } from 'lucide-react'
 
 interface NavItem {
@@ -20,6 +20,7 @@ interface NavItem {
   children?: NavItem[]
   badge?: string | number
   roles?: string[]
+  platformOnly?: boolean
 }
 
 const NAV: NavItem[] = [
@@ -84,6 +85,7 @@ const NAV: NavItem[] = [
   { label: 'Настройки', href: '/settings', icon: Settings },
   { label: 'Справка', href: '/help', icon: HelpCircle },
   { label: 'Поддержка', href: '/support', icon: HelpCircle },
+  { label: 'Платформа', href: '/platform', icon: Globe, platformOnly: true },
 ]
 
 function NavItemComponent({ item, depth = 0 }: { item: NavItem; depth?: number }) {
@@ -97,6 +99,7 @@ function NavItemComponent({ item, depth = 0 }: { item: NavItem; depth?: number }
   })
 
   if (item.roles && !item.roles.includes(userRole ?? '')) return null
+  if (item.platformOnly && session?.user?.email !== process.env.NEXT_PUBLIC_PLATFORM_OWNER_EMAIL) return null
 
   if (item.children) {
     return (

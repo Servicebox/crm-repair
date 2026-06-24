@@ -1,4 +1,5 @@
 import type mongoose from 'mongoose'
+import { getUserModel } from '@/models/User'
 import { getOrderModel } from '@/models/Order'
 import { getClientModel } from '@/models/Client'
 import { getProductModel } from '@/models/Product'
@@ -15,6 +16,7 @@ import { getChatRoomModel } from '@/models/ChatRoom'
 
 export function getModels(conn: mongoose.Connection) {
   return {
+    User: getUserModel(conn),
     Order: getOrderModel(conn),
     Client: getClientModel(conn),
     Product: getProductModel(conn),

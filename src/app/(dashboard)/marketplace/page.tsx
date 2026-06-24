@@ -1,60 +1,229 @@
 'use client'
 import { useState } from 'react'
-import { Store, Search, Filter, ShoppingCart, Star, ExternalLink, Package, TrendingDown, Truck } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  Store, Search, ShoppingCart, Star, Package, Truck, Plus, X,
+  Loader2, CheckCircle, ExternalLink, Minus, ChevronRight, Settings
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatCurrency } from '@/lib/utils'
 
-type Category = 'all' | 'screens' | 'batteries' | 'charging' | 'cameras' | 'tools'
+interface MarketItem {
+  _id: string
+  name: string
+  category: string
+  price: number
+  oldPrice?: number
+  supplier: string
+  supplierUrl?: string
+  sku?: string
+  brand?: string
+  description?: string
+  quantity: number
+  delivery?: string
+  imageUrl?: string
+}
+
+interface CartItem {
+  item: MarketItem
+  qty: number
+}
 
 const CATEGORIES = [
-  { key: 'all', label: 'Все' },
+  { key: '', label: 'Все категории' },
   { key: 'screens', label: 'Дисплеи' },
   { key: 'batteries', label: 'Аккумуляторы' },
   { key: 'charging', label: 'Зарядка' },
   { key: 'cameras', label: 'Камеры' },
   { key: 'tools', label: 'Инструменты' },
+  { key: 'housings', label: 'Корпуса' },
+  { key: 'other', label: 'Другое' },
 ]
 
-const PARTS = [
-  { id: 1, name: 'Дисплей iPhone 14 Pro Max OLED', category: 'screens', price: 4200, oldPrice: 5800, supplier: 'Опт ФМ (Иваново)', rating: 4.8, reviews: 124, inStock: true, delivery: '2-3 дня', badge: 'Хит' },
-  { id: 2, name: 'Аккумулятор iPhone 13 3227mAh', category: 'batteries', price: 890, oldPrice: 1200, supplier: 'Green Spark (Вологда)', rating: 4.6, reviews: 87, inStock: true, delivery: '1-2 дня', badge: 'Оригинал' },
-  { id: 3, name: 'Дисплей Samsung Galaxy S23 AMOLED', category: 'screens', price: 5600, supplier: 'Моба (Архангельск)', rating: 4.7, reviews: 56, inStock: true, delivery: '3-4 дня' },
-  { id: 4, name: 'Разъём зарядки iPhone 15 USB-C', category: 'charging', price: 320, supplier: '05gsm', rating: 4.5, reviews: 34, inStock: true, delivery: '1-2 дня' },
-  { id: 5, name: 'Аккумулятор Samsung S21 5000mAh', category: 'batteries', price: 1100, supplier: 'Опт ФМ (Иваново)', rating: 4.4, reviews: 41, inStock: false, delivery: '3-5 дней' },
-  { id: 6, name: 'Дисплей Xiaomi Redmi Note 12', category: 'screens', price: 1800, supplier: 'Green Spark (Вологда)', rating: 4.3, reviews: 28, inStock: true, delivery: '2-3 дня' },
-  { id: 7, name: 'Набор отвёрток iFixit Pro Tech', category: 'tools', price: 3400, supplier: 'Моба (Архангельск)', rating: 4.9, reviews: 203, inStock: true, delivery: '4-5 дней', badge: 'Топ' },
-  { id: 8, name: 'Камера основная iPhone 14', category: 'cameras', price: 2800, supplier: 'Опт ФМ (Иваново)', rating: 4.6, reviews: 19, inStock: true, delivery: '2-3 дня' },
-  { id: 9, name: 'Разъём зарядки Samsung Type-C', category: 'charging', price: 280, supplier: '05gsm', rating: 4.2, reviews: 67, inStock: true, delivery: '1 день' },
-  { id: 10, name: 'Аккумулятор MacBook Pro 13" A2338', category: 'batteries', price: 4900, oldPrice: 6200, supplier: 'Green Spark (Вологда)', rating: 4.7, reviews: 45, inStock: true, delivery: '2-3 дня', badge: 'Скидка' },
-  { id: 11, name: 'Термопаста Arctic MX-4 4г', category: 'tools', price: 280, supplier: '05gsm', rating: 4.8, reviews: 312, inStock: true, delivery: '1 день' },
-  { id: 12, name: 'Дисплей Huawei P50 Pro', category: 'screens', price: 6800, supplier: 'Моба (Архангельск)', rating: 4.5, reviews: 12, inStock: false, delivery: '5-7 дней' },
-]
-
-const SUPPLIERS = [
-  { name: 'Опт ФМ', city: 'Иваново', rating: 4.8, orders: 0, delivery: '2-3 дня', url: 'https://optfm.ru' },
-  { name: 'Green Spark', city: 'Вологда', rating: 4.6, orders: 0, delivery: '1-2 дня', url: '' },
-  { name: 'Моба', city: 'Архангельск', rating: 4.5, orders: 0, delivery: '3-5 дней', url: '' },
-  { name: '05gsm', city: '', rating: 4.7, orders: 0, delivery: '1-2 дня', url: 'https://05gsm.ru' },
-]
+const EMPTY_FORM = {
+  name: '', category: 'screens', price: 0, oldPrice: 0,
+  supplier: '', supplierUrl: '', sku: '', brand: '', description: '',
+  delivery: '', inStock: true,
+}
 
 export default function MarketplacePage() {
-  const [category, setCategory] = useState<Category>('all')
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('popular')
-  const [cart, setCart] = useState<number[]>([])
+  const [category, setCategory] = useState('')
+  const [sort, setSort] = useState('name')
+  const [cart, setCart] = useState<CartItem[]>([])
+  const [showCart, setShowCart] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [form, setForm] = useState({ ...EMPTY_FORM })
+  const [addingSaving, setAddingSaving] = useState(false)
+  const [addError, setAddError] = useState('')
+  const [checkoutDone, setCheckoutDone] = useState<{ orderNumber: string; total: number } | null>(null)
+  const [checkoutError, setCheckoutError] = useState('')
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
+  const [comment, setComment] = useState('')
 
-  const filtered = PARTS.filter(p => {
-    const matchCat = category === 'all' || p.category === category
-    const matchSearch = !search || p.name.toLowerCase().includes(search.toLowerCase()) || p.supplier.toLowerCase().includes(search.toLowerCase())
-    return matchCat && matchSearch
-  }).sort((a, b) => {
-    if (sort === 'price_asc') return a.price - b.price
-    if (sort === 'price_desc') return b.price - a.price
-    if (sort === 'rating') return b.rating - a.rating
-    return b.reviews - a.reviews
+  const { data: items = [], isLoading } = useQuery<MarketItem[]>({
+    queryKey: ['marketplace', search, category],
+    queryFn: async () => {
+      const p = new URLSearchParams()
+      if (search) p.set('search', search)
+      if (category) p.set('category', category)
+      const res = await fetch(`/api/marketplace?${p}`)
+      const json = await res.json()
+      return json.data ?? []
+    },
   })
 
-  function toggleCart(id: number) {
-    setCart(p => p.includes(id) ? p.filter(i => i !== id) : [...p, id])
+  const sorted = [...items].sort((a, b) => {
+    if (sort === 'price_asc') return a.price - b.price
+    if (sort === 'price_desc') return b.price - a.price
+    return a.name.localeCompare(b.name)
+  })
+
+  const cartTotal = cart.reduce((s, c) => s + c.item.price * c.qty, 0)
+  const cartCount = cart.reduce((s, c) => s + c.qty, 0)
+
+  function addToCart(item: MarketItem) {
+    setCart(prev => {
+      const ex = prev.find(c => c.item._id === item._id)
+      if (ex) return prev.map(c => c.item._id === item._id ? { ...c, qty: c.qty + 1 } : c)
+      return [...prev, { item, qty: 1 }]
+    })
+  }
+
+  function updateQty(id: string, qty: number) {
+    if (qty < 1) { setCart(p => p.filter(c => c.item._id !== id)); return }
+    setCart(p => p.map(c => c.item._id === id ? { ...c, qty } : c))
+  }
+
+  async function handleCheckout() {
+    if (cart.length === 0) return
+    setCheckoutLoading(true)
+    setCheckoutError('')
+    try {
+      const res = await fetch('/api/marketplace/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: cart.map(c => ({ id: c.item._id, name: c.item.name, price: c.item.price, qty: c.qty, supplier: c.item.supplier })),
+          comment: comment || undefined,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setCheckoutError(json.error ?? 'Ошибка заявки'); return }
+      setCheckoutDone({ orderNumber: json.data.orderNumber, total: json.data.total })
+      setCart([])
+    } catch {
+      setCheckoutError('Ошибка сети')
+    } finally {
+      setCheckoutLoading(false)
+    }
+  }
+
+  async function handleAddItem(e: React.FormEvent) {
+    e.preventDefault()
+    setAddingSaving(true)
+    setAddError('')
+    try {
+      const res = await fetch('/api/marketplace', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, oldPrice: form.oldPrice || undefined }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setAddError(json.error ?? 'Ошибка'); return }
+      queryClient.invalidateQueries({ queryKey: ['marketplace'] })
+      setShowAddForm(false)
+      setForm({ ...EMPTY_FORM })
+    } catch {
+      setAddError('Ошибка сети')
+    } finally {
+      setAddingSaving(false)
+    }
+  }
+
+  if (showCart) {
+    return (
+      <div className="p-4 md:p-6 max-w-2xl mx-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <button onClick={() => setShowCart(false)} className="p-2 hover:bg-accent rounded-lg transition">
+            <ChevronRight className="w-5 h-5 rotate-180" />
+          </button>
+          <h1 className="text-xl font-bold">Корзина закупки</h1>
+        </div>
+
+        {checkoutDone ? (
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-8 text-center">
+            <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-3" />
+            <h2 className="text-lg font-semibold text-green-800 mb-1">Заявка создана</h2>
+            <p className="text-green-700 text-sm mb-1">№ {checkoutDone.orderNumber}</p>
+            <p className="text-green-700 text-sm mb-4">Сумма: {formatCurrency(checkoutDone.total)}</p>
+            <button
+              onClick={() => { setCheckoutDone(null); setShowCart(false); setComment('') }}
+              className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition"
+            >
+              Продолжить закупки
+            </button>
+          </div>
+        ) : cart.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground">
+            <ShoppingCart className="w-12 h-12 mx-auto mb-3 opacity-20" />
+            <p>Корзина пуста</p>
+            <button onClick={() => setShowCart(false)} className="mt-3 text-blue-600 text-sm hover:underline">Вернуться к каталогу</button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {cart.map(({ item, qty }) => (
+              <div key={item._id} className="bg-card border rounded-xl p-4 flex gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">{item.name}</div>
+                  <div className="text-xs text-muted-foreground mt-0.5">{item.supplier}</div>
+                  {item.delivery && <div className="text-xs text-blue-600 mt-0.5 flex items-center gap-1"><Truck className="w-3 h-3" />{item.delivery}</div>}
+                </div>
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  <div className="font-bold text-sm">{formatCurrency(item.price * qty)}</div>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => updateQty(item._id, qty - 1)} className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-accent transition">
+                      <Minus className="w-3 h-3" />
+                    </button>
+                    <span className="w-8 text-center text-sm font-medium">{qty}</span>
+                    <button onClick={() => updateQty(item._id, qty + 1)} className="w-7 h-7 rounded-lg border flex items-center justify-center hover:bg-accent transition">
+                      <Plus className="w-3 h-3" />
+                    </button>
+                    <button onClick={() => setCart(p => p.filter(c => c.item._id !== item._id))} className="w-7 h-7 rounded-lg hover:bg-red-50 text-red-500 flex items-center justify-center transition ml-1">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="bg-card border rounded-xl p-4 space-y-3">
+              <div className="flex justify-between font-semibold text-lg">
+                <span>Итого:</span>
+                <span>{formatCurrency(cartTotal)}</span>
+              </div>
+              <textarea
+                value={comment}
+                onChange={e => setComment(e.target.value)}
+                placeholder="Комментарий к заявке (необязательно)"
+                rows={2}
+                className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+              />
+              {checkoutError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{checkoutError}</div>}
+              <button
+                onClick={handleCheckout}
+                disabled={checkoutLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition"
+              >
+                {checkoutLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                Оформить заявку на закупку
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -67,69 +236,67 @@ export default function MarketplacePage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-0.5">Закупайте запчасти напрямую у поставщиков</p>
         </div>
-        <button className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition relative">
-          <ShoppingCart className="w-4 h-4" />
-          Корзина
-          {cart.length > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-              {cart.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        {[
-          { icon: Package, label: 'Позиций', value: '12 400+' },
-          { icon: Truck, label: 'Поставщиков', value: '38' },
-          { icon: TrendingDown, label: 'Ср. экономия', value: '23%' },
-          { icon: Star, label: 'Ср. рейтинг', value: '4.7' },
-        ].map(s => (
-          <div key={s.label} className="bg-card border rounded-xl px-3 py-3 flex items-center gap-3">
-            <div className="p-2 bg-blue-50 rounded-lg">
-              <s.icon className="w-4 h-4 text-blue-600" />
-            </div>
-            <div>
-              <div className="font-bold">{s.value}</div>
-              <div className="text-xs text-muted-foreground">{s.label}</div>
-            </div>
-          </div>
-        ))}
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowAddForm(true)}
+            className="flex items-center gap-2 border hover:bg-accent text-sm font-medium px-3 py-2 rounded-lg transition"
+          >
+            <Settings className="w-4 h-4" />
+            Добавить позицию
+          </button>
+          <button
+            onClick={() => setShowCart(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg transition relative"
+          >
+            <ShoppingCart className="w-4 h-4" />
+            Корзина
+            {cartCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="flex flex-wrap gap-3 mb-5">
         <div className="flex-1 min-w-48 relative">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Дисплей iPhone 14, аккумулятор..."
+            placeholder="Название, поставщик..."
             className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
         <select
+          value={category}
+          onChange={e => setCategory(e.target.value)}
+          className="px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+        >
+          {CATEGORIES.map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+        </select>
+        <select
           value={sort}
           onChange={e => setSort(e.target.value)}
-          className="px-3 py-2 border rounded-lg text-sm bg-background outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
         >
-          <option value="popular">По популярности</option>
-          <option value="rating">По рейтингу</option>
-          <option value="price_asc">Дешевле</option>
-          <option value="price_desc">Дороже</option>
+          <option value="name">По названию</option>
+          <option value="price_asc">Цена ↑</option>
+          <option value="price_desc">Цена ↓</option>
         </select>
       </div>
 
-      {/* Categories */}
-      <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
+      {/* Categories scroll */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
         {CATEGORIES.map(c => (
           <button
             key={c.key}
-            onClick={() => setCategory(c.key as Category)}
+            onClick={() => setCategory(c.key)}
             className={cn(
-              'shrink-0 px-4 py-1.5 text-sm font-medium rounded-full border transition',
-              category === c.key ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-accent'
+              'whitespace-nowrap px-3 py-1.5 rounded-lg text-sm font-medium transition shrink-0',
+              category === c.key ? 'bg-blue-600 text-white' : 'border hover:bg-accent'
             )}
           >
             {c.label}
@@ -137,105 +304,147 @@ export default function MarketplacePage() {
         ))}
       </div>
 
-      {/* Products grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mb-8">
-        {filtered.map(part => (
-          <div key={part.id} className="bg-card border rounded-xl overflow-hidden hover:shadow-md transition group">
-            <div className="h-36 bg-gradient-to-br from-slate-100 to-slate-200 flex items-center justify-center relative">
-              <Package className="w-12 h-12 text-slate-400" />
-              {part.badge && (
-                <span className={cn(
-                  'absolute top-2 left-2 text-xs font-medium px-2 py-0.5 rounded-full',
-                  part.badge === 'Хит' ? 'bg-orange-500 text-white' :
-                  part.badge === 'Топ' ? 'bg-purple-500 text-white' :
-                  part.badge === 'Оригинал' ? 'bg-green-500 text-white' :
-                  'bg-red-500 text-white'
-                )}>
-                  {part.badge}
-                </span>
-              )}
-              {!part.inStock && (
-                <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
-                  <span className="text-sm font-medium text-slate-500 bg-white px-2 py-1 rounded">Нет в наличии</span>
+      {/* Grid */}
+      {isLoading ? (
+        <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
+      ) : sorted.length === 0 ? (
+        <div className="text-center py-20 text-muted-foreground">
+          <Package className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          <p className="font-medium mb-1">Каталог пуст</p>
+          <p className="text-sm">Добавьте первую позицию через кнопку «Добавить позицию»</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {sorted.map(item => {
+            const inCart = cart.find(c => c.item._id === item._id)
+            const outOfStock = item.quantity === 0
+            return (
+              <div key={item._id} className={cn('bg-card border rounded-xl overflow-hidden flex flex-col transition hover:shadow-md', outOfStock && 'opacity-60')}>
+                <div className="p-4 flex-1">
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{item.category}</div>
+                    {outOfStock && <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full whitespace-nowrap">Нет в наличии</span>}
+                  </div>
+                  <div className="font-semibold text-sm leading-snug mb-1">{item.name}</div>
+                  {item.brand && <div className="text-xs text-muted-foreground mb-1">{item.brand}</div>}
+                  <div className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
+                    <Truck className="w-3 h-3 shrink-0" />
+                    {item.supplier}
+                    {item.supplierUrl && (
+                      <a href={item.supplierUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 ml-auto">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                  {item.delivery && (
+                    <div className="text-xs text-blue-600 mb-3">Доставка: {item.delivery}</div>
+                  )}
+                  <div className="flex items-baseline gap-2 mt-auto">
+                    <span className="text-lg font-bold">{formatCurrency(item.price)}</span>
+                    {item.oldPrice && item.oldPrice > item.price && (
+                      <span className="text-sm text-muted-foreground line-through">{formatCurrency(item.oldPrice)}</span>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
-            <div className="p-3">
-              <div className="text-xs text-muted-foreground mb-1">{part.supplier}</div>
-              <div className="text-sm font-medium leading-tight mb-2 line-clamp-2">{part.name}</div>
-              <div className="flex items-center gap-1 mb-2">
-                <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                <span className="text-xs font-medium">{part.rating}</span>
-                <span className="text-xs text-muted-foreground">({part.reviews})</span>
-                <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
-                  <Truck className="w-3 h-3" />{part.delivery}
-                </span>
+                <div className="p-3 border-t">
+                  {inCart ? (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => updateQty(item._id, inCart.qty - 1)} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-accent transition">
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="flex-1 text-center text-sm font-semibold">{inCart.qty} в корзине</span>
+                      <button onClick={() => updateQty(item._id, inCart.qty + 1)} className="w-8 h-8 rounded-lg border flex items-center justify-center hover:bg-accent transition">
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => addToCart(item)}
+                      disabled={outOfStock}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-muted disabled:text-muted-foreground text-white rounded-lg text-sm font-medium transition"
+                    >
+                      <ShoppingCart className="w-3.5 h-3.5" />
+                      В корзину
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center justify-between mt-2">
+            )
+          })}
+        </div>
+      )}
+
+      {/* Add item modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-background">
+              <h2 className="font-semibold">Добавить позицию в маркетплейс</h2>
+              <button onClick={() => { setShowAddForm(false); setAddError('') }} className="p-1.5 hover:bg-accent rounded-lg transition">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAddItem} className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Название *</label>
+                <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Дисплей iPhone 14 Pro OLED" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <span className="font-bold text-base">{part.price.toLocaleString('ru')} ₽</span>
-                  {part.oldPrice && (
-                    <span className="text-xs text-muted-foreground line-through ml-1.5">{part.oldPrice.toLocaleString('ru')} ₽</span>
-                  )}
+                  <label className="block text-sm font-medium mb-1">Категория *</label>
+                  <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
+                    {CATEGORIES.filter(c => c.key).map(c => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
                 </div>
-                <button
-                  onClick={() => toggleCart(part.id)}
-                  disabled={!part.inStock}
-                  className={cn(
-                    'text-xs font-medium px-3 py-1.5 rounded-lg transition',
-                    cart.includes(part.id)
-                      ? 'bg-green-100 text-green-700 border border-green-200'
-                      : part.inStock
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
-                        : 'bg-muted text-muted-foreground cursor-not-allowed'
-                  )}
-                >
-                  {cart.includes(part.id) ? '✓ В корзине' : 'Купить'}
+                <div>
+                  <label className="block text-sm font-medium mb-1">Артикул</label>
+                  <input value={form.sku} onChange={e => setForm(f => ({ ...f, sku: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="APL-14P-DISP" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Цена (₽) *</label>
+                  <input type="number" min="0" value={form.price || ''} onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))} required className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="4200" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Старая цена (₽)</label>
+                  <input type="number" min="0" value={form.oldPrice || ''} onChange={e => setForm(f => ({ ...f, oldPrice: parseFloat(e.target.value) || 0 }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="5800" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Поставщик *</label>
+                <input value={form.supplier} onChange={e => setForm(f => ({ ...f, supplier: e.target.value }))} required className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Опт ФМ (Иваново)" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Сайт поставщика</label>
+                <input type="url" value={form.supplierUrl} onChange={e => setForm(f => ({ ...f, supplierUrl: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="https://optfm.ru" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Бренд</label>
+                  <input value={form.brand} onChange={e => setForm(f => ({ ...f, brand: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="Apple" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Срок доставки</label>
+                  <input value={form.delivery} onChange={e => setForm(f => ({ ...f, delivery: e.target.value }))} className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" placeholder="2-3 дня" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="inStock" checked={form.inStock} onChange={e => setForm(f => ({ ...f, inStock: e.target.checked }))} className="w-4 h-4 text-blue-600" />
+                <label htmlFor="inStock" className="text-sm">В наличии у поставщика</label>
+              </div>
+              {addError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{addError}</div>}
+              <div className="flex gap-2 pt-1">
+                <button type="button" onClick={() => { setShowAddForm(false); setAddError('') }} className="flex-1 py-2.5 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
+                <button type="submit" disabled={addingSaving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition">
+                  {addingSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Добавить
                 </button>
               </div>
-            </div>
+            </form>
           </div>
-        ))}
-      </div>
-
-      {/* Suppliers */}
-      <div className="bg-card border rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b">
-          <h3 className="font-semibold">Рекомендуемые поставщики</h3>
         </div>
-        <div className="divide-y">
-          {SUPPLIERS.map(s => (
-            <div key={s.name} className="flex items-center justify-between px-4 py-3 hover:bg-muted/20 transition">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Store className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <div className="font-medium text-sm">{s.name}{s.city && <span className="text-muted-foreground font-normal"> · {s.city}</span>}</div>
-                  <div className="text-xs text-muted-foreground">Доставка: {s.delivery}</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1 text-sm">
-                  <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                  <span className="font-medium">{s.rating}</span>
-                </div>
-                {s.url ? (
-                  <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-xs border px-3 py-1.5 rounded-lg hover:bg-accent transition flex items-center gap-1">
-                    <ExternalLink className="w-3 h-3" />
-                    Открыть
-                  </a>
-                ) : (
-                  <button className="text-xs border px-3 py-1.5 rounded-lg opacity-40 cursor-not-allowed flex items-center gap-1" disabled>
-                    <ExternalLink className="w-3 h-3" />
-                    Скоро
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

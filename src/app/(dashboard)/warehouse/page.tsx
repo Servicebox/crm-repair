@@ -46,6 +46,7 @@ export default function WarehousePage() {
   const [editItem, setEditItem] = useState<Product | null>(null)
   const [form, setForm] = useState({ ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [scannerActive, setScannerActive] = useState(false)
   const [receivingItem, setReceivingItem] = useState<Product | null>(null)
   const [receivingQty, setReceivingQty] = useState('')
@@ -100,15 +101,26 @@ export default function WarehousePage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
-    const url = editItem ? `/api/warehouse/${editItem._id}` : '/api/warehouse'
-    await fetch(url, {
-      method: editItem ? 'PATCH' : 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
-    queryClient.invalidateQueries({ queryKey: ['warehouse'] })
-    setShowForm(false)
-    setSaving(false)
+    setSaveError('')
+    try {
+      const url = editItem ? `/api/warehouse/${editItem._id}` : '/api/warehouse'
+      const res = await fetch(url, {
+        method: editItem ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+      const json = await res.json()
+      if (!res.ok) {
+        setSaveError(json.error ?? 'Ошибка сохранения')
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['warehouse'] })
+      setShowForm(false)
+    } catch {
+      setSaveError('Ошибка сети')
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function handleDelete(id: string) {
@@ -487,8 +499,13 @@ export default function WarehousePage() {
                   className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
               </div>
 
+              {saveError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">
+                  {saveError}
+                </div>
+              )}
               <div className="flex gap-2 pt-1">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2.5 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
+                <button type="button" onClick={() => { setShowForm(false); setSaveError('') }} className="flex-1 py-2.5 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   Сохранить
