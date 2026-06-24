@@ -73,6 +73,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
   await connectToDatabase()
-  await User.findByIdAndUpdate(params.id, { isActive: false })
+  const deleted = await User.findByIdAndDelete(params.id)
+  if (!deleted) return err('Сотрудник не найден', 404)
   return ok({ deleted: true })
 }

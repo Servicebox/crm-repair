@@ -57,10 +57,13 @@ export async function POST(req: NextRequest) {
     emailVerificationExpires: new Date(Date.now() + 48 * 60 * 60 * 1000),
   })
 
+  let emailSent = false
   try {
     await sendVerificationEmail(data.email, token, data.name)
-  } catch {
+    emailSent = true
+  } catch (emailError) {
+    console.error('[employees] Failed to send verification email to', data.email, ':', emailError)
   }
 
-  return ok({ id: user._id, name: user.name, email: user.email, role: user.role }, 201)
+  return ok({ id: user._id, name: user.name, email: user.email, role: user.role, emailSent }, 201)
 }

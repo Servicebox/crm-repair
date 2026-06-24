@@ -139,6 +139,11 @@ export default function EmployeesPage() {
     } else {
       queryClient.invalidateQueries({ queryKey: ['employees'] })
       setShowForm(false)
+      if (!editItem && json.data?.emailSent === false) {
+        setTimeout(() => {
+          alert('Сотрудник создан, но письмо-приглашение не отправлено. Проверьте настройки SMTP в логах сервера.')
+        }, 150)
+      }
     }
     setSaving(false)
   }
@@ -256,8 +261,17 @@ export default function EmployeesPage() {
                       <button
                         onClick={async () => {
                           if (!window.confirm(`Удалить сотрудника ${emp.name}? Это действие необратимо.`)) return
-                          await fetch(`/api/employees/${emp._id}`, { method: 'DELETE' })
-                          queryClient.invalidateQueries({ queryKey: ['employees'] })
+                          try {
+                            const res = await fetch(`/api/employees/${emp._id}`, { method: 'DELETE' })
+                            if (!res.ok) {
+                              const json = await res.json().catch(() => ({}))
+                              alert(json.error ?? 'Ошибка удаления сотрудника')
+                              return
+                            }
+                            queryClient.invalidateQueries({ queryKey: ['employees'] })
+                          } catch {
+                            alert('Ошибка сети при удалении сотрудника')
+                          }
                         }}
                         className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg transition"
                         title="Удалить"
