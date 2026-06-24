@@ -37,6 +37,11 @@ export async function POST(req: NextRequest) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const expires = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
+    await User.findOneAndUpdate(
+      { _id: user._id },
+      { emailVerificationToken: tokenHash, emailVerificationExpires: expires }
+    )
+
     try {
       await sendVerificationEmail(email, token, user.name)
     } catch (emailError) {
@@ -46,11 +51,6 @@ export async function POST(req: NextRequest) {
         { status: 500 }
       )
     }
-
-    await User.findOneAndUpdate(
-      { _id: user._id },
-      { emailVerificationToken: tokenHash, emailVerificationExpires: expires }
-    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

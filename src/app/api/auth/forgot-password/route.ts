@@ -31,17 +31,17 @@ export async function POST(request: NextRequest) {
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
     const expires = new Date(Date.now() + 60 * 60 * 1000)
 
+    await User.findOneAndUpdate(
+      { _id: user._id },
+      { passwordResetToken: tokenHash, passwordResetExpires: expires }
+    )
+
     try {
       await sendPasswordResetEmail(email, token)
     } catch (emailError) {
       console.error('[forgot-password] Failed to send reset email:', emailError)
       return NextResponse.json({ success: true })
     }
-
-    await User.findOneAndUpdate(
-      { _id: user._id },
-      { passwordResetToken: tokenHash, passwordResetExpires: expires }
-    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

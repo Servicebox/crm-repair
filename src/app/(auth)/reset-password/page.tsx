@@ -19,7 +19,7 @@ function ResetForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (password !== confirm) { setError('Пароли не совпадают'); return }
-    if (password.length < 6) { setError('Минимум 6 символов'); return }
+    if (password.length < 8) { setError('Минимум 8 символов'); return }
     setLoading(true)
     setError('')
     try {
