@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { MessageCircle, X, Send, Loader2, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import MessageBubble from '@/components/chat/MessageBubble'
 
 interface Message {
   _id: string
@@ -12,6 +13,8 @@ interface Message {
   text: string
   createdAt: string
 }
+
+const ROOM = 'general'
 
 export default function FloatingChat() {
   const [open, setOpen] = useState(false)
@@ -25,14 +28,27 @@ export default function FloatingChat() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const { data: messages } = useQuery({
-    queryKey: ['chat', 'general'],
+    queryKey: ['chat', ROOM],
     queryFn: async () => {
-      const res = await fetch('/api/chat?room=general')
+      const res = await fetch(`/api/chat?room=${ROOM}`)
       const json = await res.json()
       return json.data as Message[]
     },
-    refetchInterval: 5000,
+    staleTime: 0,
   })
+
+  // SSE subscription
+  useEffect(() => {
+    const es = new EventSource(`/api/chat/stream?room=${ROOM}`)
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data) as Message
+      queryClient.setQueryData(['chat', ROOM], (prev: Message[] = []) => {
+        if (prev.some(m => m._id === msg._id)) return prev
+        return [...prev, msg]
+      })
+    }
+    return () => es.close()
+  }, [queryClient])
 
   useEffect(() => {
     if (!messages) return
@@ -40,8 +56,7 @@ export default function FloatingChat() {
       setLastSeenCount(messages.length)
       setUnread(0)
     } else {
-      const newMessages = messages.length - lastSeenCount
-      setUnread(Math.max(0, newMessages))
+      setUnread(Math.max(0, messages.length - lastSeenCount))
     }
   }, [messages, open])
 
@@ -63,82 +78,50 @@ export default function FloatingChat() {
     await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), room: 'general' }),
+      body: JSON.stringify({ text: text.trim(), room: ROOM }),
     })
     setText('')
-    queryClient.invalidateQueries({ queryKey: ['chat', 'general'] })
     setSending(false)
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
 
   const msgs = messages ?? []
 
-  function formatTime(iso: string) {
-    try {
-      return new Date(iso).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })
-    } catch {
-      return ''
-    }
-  }
-
   return (
     <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2 print:hidden">
       {open && (
-        <div className="w-80 h-[420px] bg-white border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
-          {/* Header */}
+        <div className="w-80 h-[420px] bg-white dark:bg-card border rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
           <div className="px-4 py-3 bg-blue-600 text-white flex items-center gap-2 shrink-0">
             <MessageCircle className="w-4 h-4 shrink-0" />
             <div className="flex-1 min-w-0">
               <div className="font-semibold text-sm">Общий чат</div>
               <div className="text-xs text-blue-200">Команда сервиса</div>
             </div>
-            <button
-              onClick={() => setOpen(false)}
-              className="p-1 hover:bg-blue-700 rounded-lg transition"
-            >
+            <button onClick={() => setOpen(false)} className="p-1 hover:bg-blue-700 rounded-lg transition">
               <ChevronDown className="w-4 h-4" />
             </button>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {msgs.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
                 Сообщений пока нет
               </div>
             ) : (
-              msgs.map((msg, i) => {
-                const isOwn = msg.userId === session?.user?.id
-                const showName = i === 0 || msgs[i - 1].userId !== msg.userId
-
-                return (
-                  <div key={msg._id} className={cn('flex gap-1.5', isOwn && 'flex-row-reverse')}>
-                    {!isOwn && (
-                      <div className={cn('w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5', showName ? 'bg-blue-100 text-blue-600' : 'opacity-0')}>
-                        {msg.userName.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className={cn('max-w-[75%]', isOwn && 'items-end flex flex-col')}>
-                      {showName && !isOwn && (
-                        <div className="text-[10px] font-medium text-muted-foreground mb-0.5">{msg.userName}</div>
-                      )}
-                      <div className={cn(
-                        'px-2.5 py-1.5 rounded-2xl text-sm leading-snug',
-                        isOwn ? 'bg-blue-600 text-white rounded-tr-sm' : 'bg-muted rounded-tl-sm'
-                      )}>
-                        {msg.text}
-                      </div>
-                      <div className="text-[9px] text-muted-foreground mt-0.5">{formatTime(msg.createdAt)}</div>
-                    </div>
-                  </div>
-                )
-              })
+              msgs.map((msg, i) => (
+                <MessageBubble
+                  key={msg._id}
+                  msg={msg}
+                  prevMsg={msgs[i - 1]}
+                  currentUserId={session?.user?.id ?? ''}
+                  compact
+                />
+              ))
             )}
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
           <form onSubmit={handleSend} className="p-2.5 border-t flex gap-1.5 shrink-0">
             <input
               ref={inputRef}
@@ -159,7 +142,6 @@ export default function FloatingChat() {
         </div>
       )}
 
-      {/* Toggle button */}
       <button
         onClick={() => setOpen(!open)}
         className={cn(

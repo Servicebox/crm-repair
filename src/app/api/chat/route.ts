@@ -3,11 +3,17 @@ import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
 import { requireAuth, ok, err } from '@/lib/api-helpers'
 import ChatMessage from '@/models/ChatMessage'
+import ChatRoom from '@/models/ChatRoom'
 
 const PostMessageSchema = z.object({
   room: z.string().max(100).optional(),
   text: z.string().min(1).max(4000),
 })
+
+async function getRoomScope(roomSlug: string): Promise<'global' | 'internal'> {
+  const room = await ChatRoom.findOne({ slug: roomSlug }).lean()
+  return room?.scope ?? 'global'
+}
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth()
@@ -38,10 +44,14 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
     const data = PostMessageSchema.parse(body)
+    const roomSlug = data.room ?? 'general'
 
     await connectToDatabase()
+    const scope = await getRoomScope(roomSlug)
+
     const message = await ChatMessage.create({
-      roomId: data.room ?? 'general',
+      roomId: roomSlug,
+      scope,
       userId: session!.user.id,
       userName: session!.user.name ?? 'Пользователь',
       text: data.text,

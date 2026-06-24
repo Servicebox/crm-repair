@@ -1,36 +1,86 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, MessageCircle, Loader2 } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { Send, Loader2, Globe, Lock, ArrowLeft, MessageCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import MessageBubble from '@/components/chat/MessageBubble'
+import RoomList from '@/components/chat/RoomList'
 
 interface Message {
   _id: string
   userId: string
   userName: string
   text: string
+  scope: 'global' | 'internal'
   createdAt: string
+}
+
+interface ChatRoom {
+  _id: string
+  slug: string
+  name: string
+  scope: 'global' | 'internal'
 }
 
 export default function ChatPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
+  const [activeRoom, setActiveRoom] = useState('general')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [showSidebar, setShowSidebar] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
+
+  // Load messages via query (initial + refetch fallback)
   const { data: messages, isLoading } = useQuery({
-    queryKey: ['chat', 'general'],
+    queryKey: ['chat', activeRoom],
     queryFn: async () => {
-      const res = await fetch('/api/chat?room=general')
+      const res = await fetch(`/api/chat?room=${activeRoom}`)
       const json = await res.json()
       return json.data as Message[]
     },
-    refetchInterval: 5000,
+    staleTime: 0,
   })
+
+  // SSE for real-time updates
+  useEffect(() => {
+    const es = new EventSource(`/api/chat/stream?room=${activeRoom}`)
+    es.onmessage = (e) => {
+      const msg = JSON.parse(e.data) as Message
+      queryClient.setQueryData(['chat', activeRoom], (prev: Message[] = []) => {
+        if (prev.some(m => m._id === msg._id)) return prev
+        return [...prev, msg]
+      })
+    }
+    return () => es.close()
+  }, [activeRoom, queryClient])
+
+  // Get current room meta from rooms cache
+  const { data: rooms } = useQuery({
+    queryKey: ['chat-rooms'],
+    queryFn: async () => {
+      const res = await fetch('/api/chat/rooms')
+      const json = await res.json()
+      return json.data as ChatRoom[]
+    },
+    staleTime: 60000,
+  })
+
+  const currentRoom = rooms?.find(r => r.slug === activeRoom)
+
+  const handleRoomSelect = useCallback((slug: string) => {
+    setActiveRoom(slug)
+    setText('')
+    setShowSidebar(false)
+    setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      inputRef.current?.focus()
+    }, 100)
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -43,10 +93,9 @@ export default function ChatPage() {
     await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), room: 'general' }),
+      body: JSON.stringify({ text: text.trim(), room: activeRoom }),
     })
     setText('')
-    queryClient.invalidateQueries({ queryKey: ['chat', 'general'] })
     setSending(false)
     inputRef.current?.focus()
   }
@@ -54,80 +103,99 @@ export default function ChatPage() {
   const msgs = messages ?? []
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="px-4 py-3 border-b flex items-center gap-2">
-        <MessageCircle className="w-5 h-5 text-blue-600" />
-        <div>
-          <h1 className="font-semibold">Общий чат</h1>
-          <p className="text-xs text-muted-foreground">Внутренний чат команды</p>
+    <div className="flex h-full overflow-hidden">
+      {/* Sidebar — always visible on desktop, toggleable on mobile */}
+      <aside className={cn(
+        'w-64 border-r flex-shrink-0 flex flex-col bg-background',
+        'md:flex',
+        showSidebar ? 'flex absolute inset-0 z-10 w-full md:relative md:w-64' : 'hidden'
+      )}>
+        <div className="px-4 py-3 border-b">
+          <h2 className="font-semibold text-sm">Чат</h2>
+          <p className="text-xs text-muted-foreground">Комнаты и каналы</p>
         </div>
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-green-500" />
-          <span className="text-xs text-muted-foreground">онлайн</span>
+        <div className="flex-1 overflow-y-auto">
+          <RoomList
+            activeRoom={activeRoom}
+            onSelect={handleRoomSelect}
+            canCreate={isPrivileged}
+          />
         </div>
-      </div>
+      </aside>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-        {isLoading ? (
-          <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
-        ) : msgs.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-30" />
-            <p>Сообщений пока нет. Напишите первым!</p>
+      {/* Main chat panel */}
+      <div className={cn('flex-1 flex flex-col min-w-0', showSidebar && 'hidden md:flex')}>
+        {/* Header */}
+        <div className="px-4 py-3 border-b flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="md:hidden p-1.5 hover:bg-accent rounded-lg mr-1"
+          >
+            <ArrowLeft className="w-4 h-4" />
+          </button>
+          {currentRoom?.scope === 'global'
+            ? <Globe className="w-4 h-4 text-blue-500 shrink-0" />
+            : <Lock className="w-4 h-4 text-emerald-500 shrink-0" />
+          }
+          <div className="flex-1 min-w-0">
+            <h1 className="font-semibold text-sm truncate">
+              {currentRoom?.name ?? activeRoom}
+            </h1>
+            <p className="text-[11px] text-muted-foreground">
+              {currentRoom?.scope === 'global' ? 'Общий · виден всем' : 'Внутренний · только для команды'}
+            </p>
           </div>
-        ) : (
-          msgs.map((msg, i) => {
-            const isOwn = msg.userId === session?.user?.id
-            const showAvatar = i === 0 || msgs[i - 1].userId !== msg.userId
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="md:hidden flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <MessageCircle className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
-            return (
-              <div key={msg._id} className={cn('flex gap-2', isOwn && 'flex-row-reverse')}>
-                {!isOwn && (
-                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0', showAvatar ? 'bg-blue-100 text-blue-600' : 'opacity-0')}>
-                    {msg.userName.charAt(0).toUpperCase()}
-                  </div>
-                )}
-                <div className={cn('max-w-[70%]', isOwn && 'items-end flex flex-col')}>
-                  {showAvatar && !isOwn && (
-                    <div className="text-xs font-medium text-muted-foreground mb-1">{msg.userName}</div>
-                  )}
-                  <div className={cn(
-                    'px-3 py-2 rounded-2xl text-sm',
-                    isOwn
-                      ? 'bg-blue-600 text-white rounded-tr-sm'
-                      : 'bg-muted rounded-tl-sm'
-                  )}>
-                    {msg.text}
-                  </div>
-                  <div className="text-[10px] text-muted-foreground mt-0.5">{formatDateTime(msg.createdAt)}</div>
-                </div>
-              </div>
-            )
-          })
-        )}
-        <div ref={bottomRef} />
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+            </div>
+          ) : msgs.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground">
+              <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-20" />
+              <p className="text-sm">Сообщений пока нет. Напишите первым!</p>
+            </div>
+          ) : (
+            msgs.map((msg, i) => (
+              <MessageBubble
+                key={msg._id}
+                msg={msg}
+                prevMsg={msgs[i - 1]}
+                currentUserId={session?.user?.id ?? ''}
+              />
+            ))
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        {/* Input */}
+        <form onSubmit={handleSend} className="p-3 border-t flex gap-2 shrink-0">
+          <input
+            ref={inputRef}
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="Написать сообщение..."
+            className="flex-1 px-4 py-2.5 border rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+            maxLength={2000}
+          />
+          <button
+            type="submit"
+            disabled={!text.trim() || sending}
+            className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center text-white transition shrink-0"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </button>
+        </form>
       </div>
-
-      {/* Input */}
-      <form onSubmit={handleSend} className="p-4 border-t flex gap-2">
-        <input
-          ref={inputRef}
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="Написать сообщение..."
-          className="flex-1 px-4 py-2.5 border rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
-          maxLength={2000}
-        />
-        <button
-          type="submit"
-          disabled={!text.trim() || sending}
-          className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center text-white transition shrink-0"
-        >
-          {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
-      </form>
     </div>
   )
 }

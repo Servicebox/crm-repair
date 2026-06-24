@@ -2,6 +2,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose'
 
 export interface IChatMessage extends Document {
   roomId: string
+  scope: 'global' | 'internal'
   userId: mongoose.Types.ObjectId
   userName: string
   userAvatar?: string
@@ -15,23 +16,19 @@ export interface IChatMessage extends Document {
 const ChatMessageSchema = new Schema<IChatMessage>(
   {
     roomId: { type: String, required: true, default: 'general' },
+    scope: { type: String, enum: ['global', 'internal'], default: 'global' },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     userName: { type: String, required: true },
     userAvatar: String,
     text: { type: String, required: true, trim: true },
-    attachments: [
-      {
-        name: String,
-        url: String,
-        type: String,
-      },
-    ],
+    attachments: [{ name: String, url: String, type: String }],
     readBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
   },
   { timestamps: true }
 )
 
 ChatMessageSchema.index({ roomId: 1, createdAt: -1 })
+ChatMessageSchema.index({ scope: 1, createdAt: -1 })
 
 const ChatMessage: Model<IChatMessage> =
   mongoose.models.ChatMessage ??
