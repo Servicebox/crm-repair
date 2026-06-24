@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import Product from '@/models/Product'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const UpdateProductSchema = z.object({
   name: z.string().min(1).optional(),
@@ -29,13 +27,13 @@ function isValidObjectId(id: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Product } } = auth
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
   try {
-    await connectToDatabase()
     const body = await req.json()
     const data = UpdateProductSchema.parse(body)
     const product = await Product.findByIdAndUpdate(params.id, data, { new: true })
@@ -48,12 +46,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Product } } = auth
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
-  await connectToDatabase()
   await Product.findByIdAndUpdate(params.id, { isActive: false })
   return ok({ deleted: true })
 }

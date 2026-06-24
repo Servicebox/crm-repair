@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireRole, ok, err } from '@/lib/api-helpers'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 import User from '@/models/User'
 import crypto from 'crypto'
 import { sendVerificationEmail } from '@/lib/email'
@@ -23,7 +23,7 @@ const CreateEmployeeSchema = z.object({
 })
 
 export async function GET() {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   await connectToDatabase()
@@ -32,7 +32,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   const body = await req.json()

@@ -102,9 +102,9 @@ function LoginForm() {
       </form>
 
       <p className="text-center text-sm text-slate-500 mt-6">
-        Нет аккаунта?{' '}
-        <Link href="/register" className="text-blue-600 hover:underline font-medium">
-          Зарегистрироваться
+        Новая организация?{' '}
+        <Link href="/register-org" className="text-blue-600 hover:underline font-medium">
+          Зарегистрировать
         </Link>
       </p>
     </div>

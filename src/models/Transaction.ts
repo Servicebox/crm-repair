@@ -44,3 +44,7 @@ const Transaction: Model<ITransaction> =
   mongoose.models.Transaction ??
   mongoose.model<ITransaction>('Transaction', TransactionSchema)
 export default Transaction
+
+export function getTransactionModel(conn: mongoose.Connection) {
+  return conn.models.Transaction ?? conn.model<ITransaction>('Transaction', TransactionSchema)
+}

@@ -1,13 +1,10 @@
 import { NextRequest } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
-import AuditLog from '@/models/AuditLog'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-
-  await connectToDatabase()
+  const { models: { AuditLog } } = authResult
 
   const { searchParams } = req.nextUrl
   const page = parseInt(searchParams.get('page') ?? '1')
@@ -40,10 +37,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
+  const { models: { AuditLog } } = authResult
 
-  await connectToDatabase()
   const body = await req.json() as Record<string, unknown>
 
   const log = await AuditLog.create(body)

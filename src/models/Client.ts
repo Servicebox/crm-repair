@@ -38,3 +38,7 @@ ClientSchema.index({ name: 'text', phone: 'text', email: 'text' })
 const Client: Model<IClient> =
   mongoose.models.Client ?? mongoose.model<IClient>('Client', ClientSchema)
 export default Client
+
+export function getClientModel(conn: mongoose.Connection) {
+  return conn.models.Client ?? conn.model<IClient>('Client', ClientSchema)
+}

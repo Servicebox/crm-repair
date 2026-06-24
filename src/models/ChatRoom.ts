@@ -25,3 +25,7 @@ const ChatRoomSchema = new Schema<IChatRoom>(
 const ChatRoom: Model<IChatRoom> =
   mongoose.models.ChatRoom ?? mongoose.model<IChatRoom>('ChatRoom', ChatRoomSchema)
 export default ChatRoom
+
+export function getChatRoomModel(conn: mongoose.Connection) {
+  return conn.models.ChatRoom ?? conn.model<IChatRoom>('ChatRoom', ChatRoomSchema)
+}

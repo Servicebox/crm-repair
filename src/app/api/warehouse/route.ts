@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import Product from '@/models/Product'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const ProductSchema = z.object({
   name: z.string().min(1),
@@ -23,10 +21,10 @@ const ProductSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Product } } = auth
 
-  await connectToDatabase()
   const { searchParams } = req.nextUrl
   const search = searchParams.get('search')
   const category = searchParams.get('category')
@@ -54,12 +52,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Product } } = auth
 
   const body = await req.json()
   const data = ProductSchema.parse(body)
-  await connectToDatabase()
   const product = await Product.create(data)
   return ok(product, 201)
 }

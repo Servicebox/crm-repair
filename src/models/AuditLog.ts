@@ -31,3 +31,7 @@ AuditLogSchema.index({ type: 1, action: 1 })
 const AuditLog: Model<IAuditLog> =
   mongoose.models.AuditLog ?? mongoose.model<IAuditLog>('AuditLog', AuditLogSchema)
 export default AuditLog
+
+export function getAuditLogModel(conn: mongoose.Connection) {
+  return conn.models.AuditLog ?? conn.model<IAuditLog>('AuditLog', AuditLogSchema)
+}

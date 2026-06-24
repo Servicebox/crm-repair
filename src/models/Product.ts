@@ -48,3 +48,7 @@ ProductSchema.index({ name: 'text', sku: 'text', barcode: 'text', category: 'tex
 const Product: Model<IProduct> =
   mongoose.models.Product ?? mongoose.model<IProduct>('Product', ProductSchema)
 export default Product
+
+export function getProductModel(conn: mongoose.Connection) {
+  return conn.models.Product ?? conn.model<IProduct>('Product', ProductSchema)
+}

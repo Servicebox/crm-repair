@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
-import Transaction from '@/models/Transaction'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 const TransactionSchema = z.object({
   type: z.enum(['income', 'expense']),
@@ -14,10 +12,10 @@ const TransactionSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Transaction } } = auth
 
-  await connectToDatabase()
   const { searchParams } = req.nextUrl
   const type = searchParams.get('type')
   const from = searchParams.get('from')
@@ -60,12 +58,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Transaction } } = auth
 
   const body = await req.json()
   const data = TransactionSchema.parse(body)
-  await connectToDatabase()
   const tx = await Transaction.create({
     ...data,
     date: data.date ? new Date(data.date) : new Date(),

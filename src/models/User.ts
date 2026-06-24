@@ -29,6 +29,7 @@ export interface IUser extends Document {
   email: string
   password: string
   role: UserRole
+  companyId?: mongoose.Types.ObjectId
   locationId?: mongoose.Types.ObjectId
   phone?: string
   avatar?: string
@@ -62,6 +63,7 @@ const UserSchema = new Schema<IUser>(
       enum: ['owner', 'admin', 'manager', 'master'],
       default: 'master',
     },
+    companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
     locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
     phone: { type: String },
     avatar: { type: String },

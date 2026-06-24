@@ -1,12 +1,12 @@
 import { NextRequest } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireRole, ok, err } from '@/lib/api-helpers'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
 
 const SETTINGS_KEY = 'fiscalSettings'
 
 export async function GET() {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   await connectToDatabase()
@@ -17,7 +17,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   const body = await req.json() as unknown

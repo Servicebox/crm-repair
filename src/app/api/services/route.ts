@@ -1,8 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
-import Service from '@/models/Service'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 const ServiceSchema = z.object({
   name: z.string().min(1),
@@ -15,10 +13,10 @@ const ServiceSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Service } } = auth
 
-  await connectToDatabase()
   const { searchParams } = req.nextUrl
   const search = searchParams.get('search')
   const deviceType = searchParams.get('deviceType')
@@ -32,12 +30,12 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { Service } } = auth
 
   const body = await req.json()
   const data = ServiceSchema.parse(body)
-  await connectToDatabase()
   const service = await Service.create(data)
   return ok(service, 201)
 }

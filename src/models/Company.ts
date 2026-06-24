@@ -2,6 +2,9 @@ import mongoose, { Document, Model, Schema } from 'mongoose'
 
 export interface ICompany extends Document {
   name: string
+  slug: string
+  dbName: string
+  isActive: boolean
   phone?: string
   email?: string
   address?: string
@@ -53,6 +56,9 @@ export interface ICompany extends Document {
 const CompanySchema = new Schema<ICompany>(
   {
     name: { type: String, required: true, default: 'Мой сервисный центр' },
+    slug: { type: String, unique: true, sparse: true },
+    dbName: { type: String },
+    isActive: { type: Boolean, default: true },
     phone: String,
     email: String,
     address: String,

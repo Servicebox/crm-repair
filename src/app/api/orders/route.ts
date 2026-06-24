@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import Order from '@/models/Order'
-import Client from '@/models/Client'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
-import Notification from '@/models/Notification'
-import AuditLog from '@/models/AuditLog'
 
 const CreateOrderSchema = z.object({
   type: z.enum(['repair', 'service']).default('repair'),
@@ -45,10 +41,9 @@ const CreateOrderSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-
-  await connectToDatabase()
+  const { models: { Order } } = authResult
 
   const { searchParams } = req.nextUrl
   const page = parseInt(searchParams.get('page') ?? '1')
@@ -88,9 +83,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session } = authResult
+  const { session, models: { Order, Client, Notification, AuditLog } } = authResult
 
   try {
     const body = await req.json()

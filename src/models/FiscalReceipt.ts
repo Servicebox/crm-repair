@@ -41,3 +41,7 @@ const FiscalReceiptSchema = new Schema<IFiscalReceipt>(
 const FiscalReceipt: Model<IFiscalReceipt> =
   mongoose.models.FiscalReceipt ?? mongoose.model<IFiscalReceipt>('FiscalReceipt', FiscalReceiptSchema)
 export default FiscalReceipt
+
+export function getFiscalReceiptModel(conn: mongoose.Connection) {
+  return conn.models.FiscalReceipt ?? conn.model<IFiscalReceipt>('FiscalReceipt', FiscalReceiptSchema)
+}

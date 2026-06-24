@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireRole, ok, err } from '@/lib/api-helpers'
-import PayrollRecord from '@/models/PayrollRecord'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 
 const AddSchema = z.object({
   type: z.enum(['bonus', 'deduction']),
@@ -20,16 +18,14 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
-  const { session } = auth
+  const { session, models: { PayrollRecord } } = auth
 
   const { id } = await params
   const body = await req.json()
   const parsed = AddSchema.safeParse(body)
   if (!parsed.success) return err(parsed.error.errors[0].message)
-
-  await connectToDatabase()
 
   const record = await PayrollRecord.findById(id)
   if (!record) return err('Запись не найдена', 404)
@@ -59,22 +55,21 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
+  const { models: { PayrollRecord } } = auth
 
   const { id } = await params
   const body = await req.json()
   const parsed = RemoveSchema.safeParse(body)
   if (!parsed.success) return err(parsed.error.errors[0].message)
 
-  await connectToDatabase()
-
   const record = await PayrollRecord.findById(id)
   if (!record) return err('Запись не найдена', 404)
   if (record.status === 'paid') return err('Нельзя изменять выплаченную запись', 409)
 
   const field = parsed.data.type === 'bonus' ? 'bonuses' : 'deductions'
-  const idx = record[field].findIndex((a) => a._id.toString() === parsed.data.adjustmentId)
+  const idx = record[field].findIndex((a: { _id: { toString(): string } }) => a._id.toString() === parsed.data.adjustmentId)
   if (idx === -1) return err('Корректировка не найдена', 404)
 
   const removed = record[field][idx]

@@ -1,23 +1,19 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import Order from '@/models/Order'
-import Client from '@/models/Client'
-import Transaction from '@/models/Transaction'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 function isValidObjectId(id: string) {
   return mongoose.Types.ObjectId.isValid(id)
 }
 
 export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
+  const { models: { Order } } = authResult
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
-  await connectToDatabase()
   const order = await Order.findById(params.id).lean()
   if (!order) return err('Заказ не найден', 404)
   return ok(order)
@@ -94,14 +90,13 @@ const UpdateOrderSchema = z.object({
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session } = authResult
+  const { session, models: { Order, Client, Transaction } } = authResult
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
   try {
-    await connectToDatabase()
     const order = await Order.findById(params.id)
     if (!order) return err('Заказ не найден', 404)
 
@@ -180,12 +175,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
+  const { models: { Order, Client, Transaction } } = authResult
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
-  await connectToDatabase()
   const order = await Order.findByIdAndDelete(params.id)
   if (!order) return err('Заказ не найден', 404)
 

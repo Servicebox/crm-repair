@@ -34,3 +34,7 @@ const ChatMessage: Model<IChatMessage> =
   mongoose.models.ChatMessage ??
   mongoose.model<IChatMessage>('ChatMessage', ChatMessageSchema)
 export default ChatMessage
+
+export function getChatMessageModel(conn: mongoose.Connection) {
+  return conn.models.ChatMessage ?? conn.model<IChatMessage>('ChatMessage', ChatMessageSchema)
+}

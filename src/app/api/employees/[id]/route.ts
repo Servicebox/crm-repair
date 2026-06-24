@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireRole, ok, err } from '@/lib/api-helpers'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 import User from '@/models/User'
 
 const UpdateEmployeeSchema = z.object({
@@ -46,7 +46,7 @@ function isValidObjectId(id: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)

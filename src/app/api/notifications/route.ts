@@ -1,13 +1,10 @@
 import { NextRequest } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
-import Notification from '@/models/Notification'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-
-  await connectToDatabase()
+  const { models: { Notification } } = authResult
 
   const countOnly = req.nextUrl.searchParams.get('count') === 'unread'
 

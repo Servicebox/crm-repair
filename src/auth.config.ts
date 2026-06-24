@@ -10,8 +10,8 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user
-      const PUBLIC_PATHS = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password']
-      const PUBLIC_API = ['/api/auth', '/api/tracking', '/api/v1']
+      const PUBLIC_PATHS = ['/login', '/register', '/register-org', '/verify-email', '/forgot-password', '/reset-password']
+      const PUBLIC_API = ['/api/auth', '/api/tracking', '/api/v1', '/api/orgs/register']
 
       const isPublicPath = PUBLIC_PATHS.some(p => nextUrl.pathname.startsWith(p))
       const isPublicApi = PUBLIC_API.some(p => nextUrl.pathname.startsWith(p))
@@ -24,6 +24,8 @@ export const authConfig: NextAuthConfig = {
       if (user) {
         token.id = user.id
         token.role = user.role
+        token.companyId = user.companyId
+        token.dbName = user.dbName
       }
       return token
     },
@@ -31,6 +33,8 @@ export const authConfig: NextAuthConfig = {
       if (token && session.user) {
         if (token.id) session.user.id = token.id as string
         if (token.role) session.user.role = token.role as string
+        if (token.companyId) session.user.companyId = token.companyId as string
+        if (token.dbName) session.user.dbName = token.dbName as string
       }
       return session
     },

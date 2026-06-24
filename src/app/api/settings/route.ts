@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, requireRole, ok, err } from '@/lib/api-helpers'
+import { requireTenantAuth, requireTenantRole, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
 
 const SettingsUpdateSchema = z.object({
@@ -50,7 +50,7 @@ const SettingsUpdateSchema = z.object({
 })
 
 export async function GET() {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
 
   await connectToDatabase()
@@ -60,7 +60,7 @@ export async function GET() {
 }
 
 export async function PATCH(req: NextRequest) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
 
   try {

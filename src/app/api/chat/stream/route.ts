@@ -1,18 +1,15 @@
 import { NextRequest } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth } from '@/lib/api-helpers'
-import ChatMessage from '@/models/ChatMessage'
+import { requireTenantAuth } from '@/lib/api-helpers'
 import mongoose from 'mongoose'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { ChatMessage } } = auth
 
   const room = req.nextUrl.searchParams.get('room') ?? 'general'
-
-  await connectToDatabase()
 
   // Start from the latest existing message
   const latest = await ChatMessage.findOne({ roomId: room })
@@ -20,7 +17,7 @@ export async function GET(req: NextRequest) {
     .select('_id')
     .lean()
 
-  let lastId: mongoose.Types.ObjectId | null = latest ? latest._id as mongoose.Types.ObjectId : null
+  let lastId: mongoose.Types.ObjectId | null = latest ? (latest as { _id: mongoose.Types.ObjectId })._id : null
 
   const encoder = new TextEncoder()
 

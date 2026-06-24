@@ -24,3 +24,7 @@ const LocationSchema = new Schema<ILocation>(
 const Location: Model<ILocation> =
   mongoose.models.Location ?? mongoose.model<ILocation>('Location', LocationSchema)
 export default Location
+
+export function getLocationModel(conn: mongoose.Connection) {
+  return conn.models.Location ?? conn.model<ILocation>('Location', LocationSchema)
+}

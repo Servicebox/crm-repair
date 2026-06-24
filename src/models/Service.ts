@@ -32,3 +32,7 @@ const ServiceSchema = new Schema<IService>(
 const Service: Model<IService> =
   mongoose.models.Service ?? mongoose.model<IService>('Service', ServiceSchema)
 export default Service
+
+export function getServiceModel(conn: mongoose.Connection) {
+  return conn.models.Service ?? conn.model<IService>('Service', ServiceSchema)
+}

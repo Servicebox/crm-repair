@@ -1,11 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import PayrollRecord from '@/models/PayrollRecord'
-import Order from '@/models/Order'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import User from '@/models/User'
-import Shift from '@/models/Shift'
 import mongoose from 'mongoose'
 
 const PostSchema = z.object({
@@ -42,11 +38,9 @@ function calculateAccrued(
 }
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session } = authResult
-
-  await connectToDatabase()
+  const { session, models: { PayrollRecord } } = authResult
 
   const { searchParams } = req.nextUrl
   const monthParam = searchParams.get('month')
@@ -72,9 +66,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session } = authResult
+  const { session, models: { PayrollRecord, Order, Shift } } = authResult
 
   const body = await req.json()
   const parsed = PostSchema.safeParse(body)
@@ -83,8 +77,6 @@ export async function POST(req: NextRequest) {
   const { month } = parsed.data
   const isPrivileged = session!.user.role === 'owner' || session!.user.role === 'admin'
   const targetUserId = isPrivileged && parsed.data.userId ? parsed.data.userId : session!.user.id
-
-  await connectToDatabase()
 
   const user = await User.findById(targetUserId).lean()
   if (!user) return err('Сотрудник не найден', 404)
@@ -114,17 +106,16 @@ export async function POST(req: NextRequest) {
   ])
 
   const ordersCount = orders.length
-  const worksCount = orders.reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
-  const revenue = orders.reduce((sum, o) => sum + (o.finalCost ?? 0), 0)
-  const profit = orders.reduce((sum, o) => {
-    const partsCost = (o.parts ?? []).reduce(
-      (ps: number, p: { cost: number; quantity: number }) => ps + p.cost * p.quantity,
-      0
-    )
+  type LeanOrder = { works?: unknown[]; finalCost?: number; parts?: Array<{cost: number; quantity: number}> }
+  type LeanShift = { durationMinutes?: number }
+  const worksCount = (orders as LeanOrder[]).reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
+  const revenue = (orders as LeanOrder[]).reduce((sum, o) => sum + (o.finalCost ?? 0), 0)
+  const profit = (orders as LeanOrder[]).reduce((sum, o) => {
+    const partsCost = (o.parts ?? []).reduce((ps, p) => ps + p.cost * p.quantity, 0)
     return sum + (o.finalCost ?? 0) - partsCost
   }, 0)
 
-  const totalMinutes = shifts.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
+  const totalMinutes = (shifts as LeanShift[]).reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
   const hoursWorked = Math.round((totalMinutes / 60) * 100) / 100
   const shiftsCount = shifts.length
 
@@ -142,8 +133,8 @@ export async function POST(req: NextRequest) {
     month,
   })
 
-  const bonusTotal = existing ? existing.bonuses.reduce((s, b) => s + b.amount, 0) : 0
-  const deductionTotal = existing ? existing.deductions.reduce((s, d) => s + d.amount, 0) : 0
+  const bonusTotal = existing ? existing.bonuses.reduce((s: number, b: {amount: number}) => s + b.amount, 0) : 0
+  const deductionTotal = existing ? existing.deductions.reduce((s: number, d: {amount: number}) => s + d.amount, 0) : 0
   const accrued = Math.max(0, baseAccrued + bonusTotal - deductionTotal)
 
   const record = await PayrollRecord.findOneAndUpdate(

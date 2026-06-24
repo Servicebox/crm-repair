@@ -1,9 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireRole, requireAuth, ok, err } from '@/lib/api-helpers'
-import Shift from '@/models/Shift'
+import { requireTenantRole, requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const OpenShiftSchema = z.object({
   userId: z.string().min(1),
@@ -11,9 +9,9 @@ const OpenShiftSchema = z.object({
 })
 
 export async function GET(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
-  const { session } = authResult
+  const { session, models: { Shift } } = authResult
 
   const { searchParams } = req.nextUrl
   const userIdParam = searchParams.get('userId')
@@ -21,8 +19,6 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get('month') // 'YYYY-MM'
 
   const isPrivileged = session!.user.role === 'owner' || session!.user.role === 'admin'
-
-  await connectToDatabase()
 
   const filter: Record<string, unknown> = {}
 
@@ -57,9 +53,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
-  const { session } = auth
+  const { session, models: { Shift } } = auth
 
   const body = await req.json()
   const parsed = OpenShiftSchema.safeParse(body)
@@ -71,8 +67,6 @@ export async function POST(req: NextRequest) {
   } catch {
     return err('Неверный ID сотрудника', 400)
   }
-
-  await connectToDatabase()
 
   const existing = await Shift.findOne({ userId: targetUserId, status: 'open' })
   if (existing) return err('У сотрудника уже открыта смена', 409)

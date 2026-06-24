@@ -38,3 +38,7 @@ const Notification: Model<INotification> =
   mongoose.models.Notification ?? mongoose.model<INotification>('Notification', NotificationSchema)
 
 export default Notification
+
+export function getNotificationModel(conn: mongoose.Connection) {
+  return conn.models.Notification ?? conn.model<INotification>('Notification', NotificationSchema)
+}

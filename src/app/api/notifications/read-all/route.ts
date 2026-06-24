@@ -1,12 +1,10 @@
-import { requireAuth, ok } from '@/lib/api-helpers'
-import { connectToDatabase } from '@/lib/mongodb'
-import Notification from '@/models/Notification'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 export async function PATCH() {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
+  const { models: { Notification } } = authResult
 
-  await connectToDatabase()
   await Notification.updateMany({ read: false }, { read: true })
 
   return ok({ success: true })

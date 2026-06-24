@@ -33,3 +33,7 @@ ShiftSchema.index({ userId: 1, openedAt: -1 })
 
 const Shift: Model<IShift> = mongoose.models.Shift ?? mongoose.model<IShift>('Shift', ShiftSchema)
 export default Shift
+
+export function getShiftModel(conn: mongoose.Connection) {
+  return conn.models.Shift ?? conn.model<IShift>('Shift', ShiftSchema)
+}

@@ -1,17 +1,15 @@
 import { NextRequest } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
-import Notification from '@/models/Notification'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 export async function PATCH(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
+  const { models: { Notification } } = authResult
 
   const { id } = await params
-  await connectToDatabase()
 
   const notification = await Notification.findByIdAndUpdate(
     id,

@@ -255,3 +255,7 @@ OrderSchema.index({
 const Order: Model<IOrder> =
   mongoose.models.Order ?? mongoose.model<IOrder>('Order', OrderSchema)
 export default Order
+
+export function getOrderModel(conn: mongoose.Connection) {
+  return conn.models.Order ?? conn.model<IOrder>('Order', OrderSchema)
+}

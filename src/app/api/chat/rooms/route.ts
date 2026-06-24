@@ -1,21 +1,12 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, requireRole, ok, err } from '@/lib/api-helpers'
-import ChatRoom from '@/models/ChatRoom'
-import ChatMessage from '@/models/ChatMessage'
+import { requireTenantAuth, requireTenantRole, ok, err } from '@/lib/api-helpers'
 import mongoose from 'mongoose'
 
 const DEFAULT_ROOMS = [
   { slug: 'general', name: 'Общий чат', scope: 'global' as const },
   { slug: 'internal', name: 'Внутренний чат', scope: 'internal' as const },
 ]
-
-async function ensureDefaultRooms() {
-  for (const room of DEFAULT_ROOMS) {
-    await ChatRoom.updateOne({ slug: room.slug }, { $setOnInsert: room }, { upsert: true })
-  }
-}
 
 const CreateRoomSchema = z.object({
   name: z.string().min(1).max(60),
@@ -24,11 +15,13 @@ const CreateRoomSchema = z.object({
 })
 
 export async function GET() {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
+  const { models: { ChatRoom, ChatMessage } } = auth
 
-  await connectToDatabase()
-  await ensureDefaultRooms()
+  for (const room of DEFAULT_ROOMS) {
+    await ChatRoom.updateOne({ slug: room.slug }, { $setOnInsert: room }, { upsert: true })
+  }
 
   const rooms = await ChatRoom.find({}).sort({ scope: 1, createdAt: 1 }).lean()
 
@@ -47,15 +40,13 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireRole(['owner', 'admin'])
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
-  const { session } = auth
+  const { session, models: { ChatRoom } } = auth
 
   const body = await req.json()
   const parsed = CreateRoomSchema.safeParse(body)
   if (!parsed.success) return err(parsed.error.errors[0].message)
-
-  await connectToDatabase()
 
   const slug = parsed.data.name
     .toLowerCase()

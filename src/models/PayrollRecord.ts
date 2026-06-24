@@ -65,3 +65,7 @@ PayrollRecordSchema.index({ userId: 1, month: 1 }, { unique: true })
 const PayrollRecord: Model<IPayrollRecord> =
   mongoose.models.PayrollRecord ?? mongoose.model<IPayrollRecord>('PayrollRecord', PayrollRecordSchema)
 export default PayrollRecord
+
+export function getPayrollRecordModel(conn: mongoose.Connection) {
+  return conn.models.PayrollRecord ?? conn.model<IPayrollRecord>('PayrollRecord', PayrollRecordSchema)
+}

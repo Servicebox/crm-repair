@@ -1,15 +1,10 @@
 import { NextRequest } from 'next/server'
-import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok } from '@/lib/api-helpers'
-import Order from '@/models/Order'
-import Client from '@/models/Client'
-import Transaction from '@/models/Transaction'
+import { requireTenantAuth, ok } from '@/lib/api-helpers'
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAuth()
+  const auth = await requireTenantAuth()
   if (auth.error) return auth.error
-
-  await connectToDatabase()
+  const { models: { Order, Client, Transaction } } = auth
 
   const { searchParams } = req.nextUrl
   const period = searchParams.get('period') ?? 'month'
