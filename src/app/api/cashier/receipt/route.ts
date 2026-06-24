@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import FiscalReceipt from '@/models/FiscalReceipt'
 import Company from '@/models/Company'
 import { sendReceiptAtol } from '@/lib/cashier/atol'
@@ -40,7 +40,7 @@ function getStringField(obj: Record<string, unknown>, key: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
 
   let body: unknown
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
   await connectToDatabase()
 
   // Load cashier settings from Company
-  const company = await Company.findOne().lean() as Record<string, unknown> | null
+  const company = await Company.findOne({ dbName: authResult.session!.user.dbName }).lean() as Record<string, unknown> | null
   if (!company) return err('Компания не настроена', 500)
 
   const cashierSettings = parseCashierSettings(
@@ -83,6 +83,7 @@ export async function POST(req: NextRequest) {
     paymentMethod: data.paymentMethod,
     clientEmail: data.clientEmail || undefined,
     clientPhone: data.clientPhone || undefined,
+    cashierName: authResult.session!.user.name ?? 'Кассир',
   }
 
   // Persist receipt record in pending state
@@ -127,7 +128,7 @@ export async function POST(req: NextRequest) {
     result = await sendReceiptAtol(atolConfig, receiptData)
   } else if (activeProvider === 'evotor') {
     const providerCfg = parseCashierSettings(
-      cashierSettings ? cashierSettings['evotor'] : null
+      cashierSettings ? (cashierSettings['evoter'] ?? cashierSettings['evotor']) : null
     )
     if (!providerCfg) {
       receipt.status = 'error'
@@ -142,7 +143,7 @@ export async function POST(req: NextRequest) {
     result = await sendReceiptEvotor(evotorConfig, receiptData)
   } else if (activeProvider === 'cloudkassir') {
     const providerCfg = parseCashierSettings(
-      cashierSettings ? cashierSettings['cloudkassir'] : null
+      cashierSettings ? (cashierSettings['cloudKassir'] ?? cashierSettings['cloudkassir']) : null
     )
     if (!providerCfg) {
       receipt.status = 'error'

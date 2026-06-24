@@ -53,7 +53,8 @@ async function getAtolToken(config: AtolConfig): Promise<string> {
 
 export async function sendReceiptAtol(
   config: AtolConfig,
-  receiptData: CashierReceiptData
+  receiptData: CashierReceiptData,
+  operation: 'sell' | 'sell_refund' = 'sell'
 ): Promise<CashierResult> {
   try {
     const token = await getAtolToken(config)
@@ -76,6 +77,7 @@ export async function sendReceiptAtol(
           inn: config.inn,
           payment_address: config.paymentAddress,
         },
+        ...(receiptData.cashierName ? { cashier: { name: receiptData.cashierName } } : {}),
         items: receiptData.items.map((item) => ({
           name: item.name,
           price: item.price,
@@ -95,7 +97,7 @@ export async function sendReceiptAtol(
       },
     }
 
-    const res = await fetch(`${ATOL_BASE_URL}/${config.groupCode}/sell`, {
+    const res = await fetch(`${ATOL_BASE_URL}/${config.groupCode}/${operation}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json; charset=utf-8',

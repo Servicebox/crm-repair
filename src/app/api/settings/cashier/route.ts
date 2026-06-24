@@ -10,7 +10,7 @@ export async function GET() {
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne().lean() as Record<string, unknown> | null
+  const company = await Company.findOne({ dbName: auth.session!.user.dbName }).lean() as Record<string, unknown> | null
   if (!company) return ok(null)
 
   const settings = (company[SETTINGS_KEY] ?? null) as unknown
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const company = await Company.findOneAndUpdate(
-    {},
+    { dbName: auth.session!.user.dbName },
     { $set: { [SETTINGS_KEY]: body } },
     { new: true, upsert: true },
   )

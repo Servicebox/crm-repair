@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
             email: company?.email as string | undefined ?? atolCfg!.login,
             sno,
             inn: atolCfg!.inn,
-            payment_address: atolCfg!.paymentAddress || (company?.website as string | undefined) || 'https://servicebox.ru',
+            payment_address: atolCfg!.paymentAddress,
           },
           items: receiptItems,
           payments: [{ type: PAYMENT_TYPE_MAP[paymentMethod] ?? 2, sum: total }],

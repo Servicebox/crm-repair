@@ -138,6 +138,35 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             userId: session!.user.id,
             date: new Date(),
           })
+
+          // autoReceipt: автоматическая фискализация при выдаче
+          try {
+            const { connectToDatabase } = await import('@/lib/mongodb')
+            const Company = (await import('@/models/Company')).default
+            await connectToDatabase()
+            const company = await Company.findOne({ dbName: session!.user.dbName }).lean() as Record<string, unknown> | null
+            const cashierSettings = company?.cashierSettings as Record<string, unknown> | undefined
+            const globalCfg = cashierSettings?.global as Record<string, unknown> | undefined
+            if (globalCfg?.autoReceipt) {
+              const baseUrl = process.env.NEXTAUTH_URL ?? 'http://localhost:3000'
+              await fetch(`${baseUrl}/api/v1/fiscal/receipt`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'x-api-key': process.env.API_SECRET_KEY ?? '',
+                },
+                body: JSON.stringify({
+                  orderId: order._id.toString(),
+                  orderNumber: order.number,
+                  paymentMethod: parsed.paymentMethod,
+                  total: order.finalCost,
+                  clientEmail: order.clientEmail ?? undefined,
+                }),
+              })
+            }
+          } catch {
+            // Фискализация не должна блокировать выдачу заказа
+          }
         }
       }
     }

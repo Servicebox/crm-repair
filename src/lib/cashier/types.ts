@@ -16,6 +16,7 @@ export interface CashierReceiptData {
   paymentMethod: 'cash' | 'card' | 'transfer'
   clientEmail?: string
   clientPhone?: string
+  cashierName?: string  // ФИО кассира — обязательно по 54-ФЗ
 }
 
 export interface CashierResult {

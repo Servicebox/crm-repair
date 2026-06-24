@@ -54,7 +54,7 @@ export async function GET() {
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne().lean()
+  const company = await Company.findOne({ dbName: auth.session!.user.dbName }).lean()
   if (!company) return err('Компания не найдена', 404)
   return ok(company)
 }
@@ -67,7 +67,7 @@ export async function PATCH(req: NextRequest) {
     await connectToDatabase()
     const body = await req.json()
     const data = SettingsUpdateSchema.parse(body)
-    const company = await Company.findOneAndUpdate({}, { $set: data }, { new: true, upsert: true })
+    const company = await Company.findOneAndUpdate({ dbName: auth.session!.user.dbName }, { $set: data }, { new: true, upsert: true })
     return ok(company)
   } catch (error) {
     if (error instanceof z.ZodError) return err(error.errors[0].message)
