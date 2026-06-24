@@ -39,8 +39,10 @@ export interface IUser extends Document {
   passwordResetExpires?: Date
   isActive: boolean
   salary?: {
-    type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order'
+    type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
     value: number
+    hourlyRate?: number
+    overtimeMultiplier?: number
     salesPercent?: number
     guaranteed?: number
   }
@@ -72,9 +74,11 @@ const UserSchema = new Schema<IUser>(
     salary: {
       type: {
         type: String,
-        enum: ['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order'],
+        enum: ['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly'],
       },
       value: Number,
+      hourlyRate: Number,
+      overtimeMultiplier: Number,
       salesPercent: Number,
       guaranteed: Number,
     },

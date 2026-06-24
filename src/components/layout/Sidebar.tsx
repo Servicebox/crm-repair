@@ -10,7 +10,7 @@ import {
   Settings, HelpCircle, Bell, Shield, FileText, Upload,
   Wrench, ShoppingBag, Store, MessageCircle, TrendingUp,
   ChevronDown, ChevronRight, LogOut, User, Bot, RotateCcw,
-  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt,
+  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt, Clock,
 } from 'lucide-react'
 
 interface NavItem {
@@ -66,6 +66,7 @@ const NAV: NavItem[] = [
     icon: Settings,
     children: [
       { label: 'Сотрудники', href: '/employees', icon: Users, roles: ['owner', 'admin'] },
+      { label: 'Смены', href: '/shifts', icon: Clock, roles: ['owner', 'admin'] },
       { label: 'Права доступа', href: '/settings/permissions', icon: Shield, roles: ['owner', 'admin'] },
       { label: 'Уведомления', href: '/notifications', icon: Bell },
       { label: 'Гарантии', href: '/warranties', icon: Shield },

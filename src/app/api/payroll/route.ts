@@ -5,6 +5,7 @@ import { requireAuth, ok, err } from '@/lib/api-helpers'
 import PayrollRecord from '@/models/PayrollRecord'
 import Order from '@/models/Order'
 import User from '@/models/User'
+import Shift from '@/models/Shift'
 import mongoose from 'mongoose'
 
 const PostSchema = z.object({
@@ -13,8 +14,10 @@ const PostSchema = z.object({
 })
 
 interface SalaryConfig {
-  type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order'
+  type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
   value: number
+  hourlyRate?: number
+  overtimeMultiplier?: number
   guaranteed?: number
 }
 
@@ -23,6 +26,7 @@ function calculateAccrued(
   revenue: number,
   profit: number,
   ordersCount: number,
+  hoursWorked: number,
 ): number {
   if (!salary?.type) return 0
   let base = 0
@@ -30,6 +34,10 @@ function calculateAccrued(
   else if (salary.type === 'percent_profit') base = profit * (salary.value / 100)
   else if (salary.type === 'fixed') base = salary.value
   else if (salary.type === 'rate_per_order') base = ordersCount * salary.value
+  else if (salary.type === 'hourly') {
+    const rate = salary.hourlyRate ?? salary.value
+    base = hoursWorked * rate
+  }
   return Math.max(base, salary.guaranteed ?? 0)
 }
 
@@ -45,7 +53,6 @@ export async function GET(req: NextRequest) {
   const userIdParam = searchParams.get('userId')
 
   const isPrivileged = session!.user.role === 'owner' || session!.user.role === 'admin'
-
   const filter: Record<string, unknown> = {}
 
   try {
@@ -58,9 +65,7 @@ export async function GET(req: NextRequest) {
     return err('Неверный идентификатор пользователя', 400)
   }
 
-  if (monthParam) {
-    filter.month = monthParam
-  }
+  if (monthParam) filter.month = monthParam
 
   const records = await PayrollRecord.find(filter).lean()
   return ok(records)
@@ -77,17 +82,13 @@ export async function POST(req: NextRequest) {
 
   const { month } = parsed.data
   const isPrivileged = session!.user.role === 'owner' || session!.user.role === 'admin'
-
-  const targetUserId = isPrivileged && parsed.data.userId
-    ? parsed.data.userId
-    : session!.user.id
+  const targetUserId = isPrivileged && parsed.data.userId ? parsed.data.userId : session!.user.id
 
   await connectToDatabase()
 
   const user = await User.findById(targetUserId).lean()
   if (!user) return err('Сотрудник не найден', 404)
 
-  // Build date range for the month
   const [year, monthNum] = month.split('-').map(Number)
   const startDate = new Date(year, monthNum - 1, 1)
   const endDate = new Date(year, monthNum, 1)
@@ -99,45 +100,72 @@ export async function POST(req: NextRequest) {
     return err('Неверный идентификатор сотрудника', 400)
   }
 
-  const orders = await Order.find({
-    masterId,
-    status: 'issued',
-    createdAt: { $gte: startDate, $lt: endDate },
-  }).lean()
+  const [orders, shifts] = await Promise.all([
+    Order.find({
+      masterId,
+      status: 'issued',
+      createdAt: { $gte: startDate, $lt: endDate },
+    }).lean(),
+    Shift.find({
+      userId: masterId,
+      status: 'closed',
+      openedAt: { $gte: startDate, $lt: endDate },
+    }).lean(),
+  ])
 
   const ordersCount = orders.length
   const worksCount = orders.reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
   const revenue = orders.reduce((sum, o) => sum + (o.finalCost ?? 0), 0)
-  // Profit approximation: finalCost minus parts cost
   const profit = orders.reduce((sum, o) => {
-    const partsCost = (o.parts ?? []).reduce((ps: number, p: { cost: number; quantity: number }) => ps + p.cost * p.quantity, 0)
+    const partsCost = (o.parts ?? []).reduce(
+      (ps: number, p: { cost: number; quantity: number }) => ps + p.cost * p.quantity,
+      0
+    )
     return sum + (o.finalCost ?? 0) - partsCost
   }, 0)
 
-  const accrued = calculateAccrued(
+  const totalMinutes = shifts.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
+  const hoursWorked = Math.round((totalMinutes / 60) * 100) / 100
+  const shiftsCount = shifts.length
+
+  const baseAccrued = calculateAccrued(
     user.salary as SalaryConfig | undefined,
     revenue,
     profit,
     ordersCount,
+    hoursWorked,
   )
 
+  // Preserve existing adjustments when recalculating
+  const existing = await PayrollRecord.findOne({
+    userId: masterId,
+    month,
+  })
+
+  const bonusTotal = existing ? existing.bonuses.reduce((s, b) => s + b.amount, 0) : 0
+  const deductionTotal = existing ? existing.deductions.reduce((s, d) => s + d.amount, 0) : 0
+  const accrued = Math.max(0, baseAccrued + bonusTotal - deductionTotal)
+
   const record = await PayrollRecord.findOneAndUpdate(
-    { userId: new mongoose.Types.ObjectId(targetUserId), month },
+    { userId: masterId, month },
     {
       $set: {
         ordersCount,
         worksCount,
         revenue,
         profit,
+        hoursWorked,
+        shiftsCount,
         accrued,
-        // Only reset paid/status if recalculating a pending record
       },
       $setOnInsert: {
         paid: 0,
         status: 'pending',
+        bonuses: [],
+        deductions: [],
       },
     },
-    { upsert: true, new: true },
+    { upsert: true, new: true }
   )
 
   return ok(record)

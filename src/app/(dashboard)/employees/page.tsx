@@ -18,6 +18,7 @@ const SALARY_TYPES = [
   { value: 'percent_profit', label: 'Процент от прибыли' },
   { value: 'fixed', label: 'Фиксированный оклад' },
   { value: 'rate_per_order', label: 'Ставка за заказ' },
+  { value: 'hourly', label: 'Почасовая ставка' },
 ]
 
 interface Employee {
@@ -28,7 +29,7 @@ interface Employee {
   phone?: string
   isActive: boolean
   isEmailVerified: boolean
-  salary?: { type: string; value: number; guaranteed: number }
+  salary?: { type: string; value: number; hourlyRate?: number; overtimeMultiplier?: number; guaranteed: number }
 }
 
 interface PayrollRecord {
@@ -37,16 +38,20 @@ interface PayrollRecord {
   month: string
   ordersCount: number
   revenue: number
+  hoursWorked: number
+  shiftsCount: number
   accrued: number
   paid: number
   status: 'pending' | 'paid'
   paidAt?: string
   notes?: string
+  bonuses: { _id: string; amount: number; reason: string }[]
+  deductions: { _id: string; amount: number; reason: string }[]
 }
 
 const EMPTY_FORM = {
   name: '', email: '', role: 'master', phone: '',
-  salary: { type: 'percent_revenue', value: 20, guaranteed: 0 },
+  salary: { type: 'percent_revenue', value: 20, hourlyRate: 0, overtimeMultiplier: 1, guaranteed: 0 },
 }
 
 function currentMonth(): string {
@@ -117,7 +122,7 @@ export default function EmployeesPage() {
 
   function openEdit(e: Employee) {
     setEditItem(e)
-    setForm({ name: e.name, email: e.email, role: e.role, phone: e.phone ?? '', salary: { type: e.salary?.type ?? 'percent_revenue', value: e.salary?.value ?? 20, guaranteed: e.salary?.guaranteed ?? 0 } })
+    setForm({ name: e.name, email: e.email, role: e.role, phone: e.phone ?? '', salary: { type: e.salary?.type ?? 'percent_revenue', value: e.salary?.value ?? 20, hourlyRate: e.salary?.hourlyRate ?? 0, overtimeMultiplier: e.salary?.overtimeMultiplier ?? 1, guaranteed: e.salary?.guaranteed ?? 0 } })
     setError('')
     setShowForm(true)
   }
@@ -168,6 +173,7 @@ export default function EmployeesPage() {
   function salaryLabel(salary?: Employee['salary']) {
     if (!salary) return '—'
     const type = SALARY_TYPES.find(t => t.value === salary.type)?.label ?? salary.type
+    if (salary.type === 'hourly') return `${type}: ${salary.hourlyRate ?? salary.value} ₽/ч`
     const suffix = salary.type.includes('percent') ? '%' : ' ₽'
     return `${type}: ${salary.value}${suffix}`
   }
@@ -312,6 +318,7 @@ export default function EmployeesPage() {
                     <th className="px-4 py-3 font-medium text-muted-foreground">Сотрудник</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Роль</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Схема</th>
+                    <th className="px-4 py-3 font-medium text-muted-foreground text-right">Часы</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground text-right">Начислено</th>
                     <th className="px-4 py-3 font-medium text-muted-foreground">Статус</th>
                     {isPrivileged && <th className="px-4 py-3 font-medium text-muted-foreground" />}
@@ -340,6 +347,9 @@ export default function EmployeesPage() {
                         </td>
                         <td className="px-4 py-3"><RoleBadge role={emp.role} /></td>
                         <td className="px-4 py-3 text-muted-foreground text-xs">{salaryLabel(emp.salary)}</td>
+                        <td className="px-4 py-3 text-right text-muted-foreground text-sm">
+                          {pr ? `${pr.hoursWorked ?? 0} ч` : '—'}
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold">
                           {pr ? formatCurrency(pr.accrued) : '—'}
                         </td>
@@ -484,9 +494,15 @@ export default function EmployeesPage() {
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <label className="block text-xs text-muted-foreground mb-0.5">
-                        {form.salary.type.includes('percent') ? 'Процент' : 'Сумма'}
+                        {form.salary.type === 'hourly' ? 'Ставка (₽/ч)' : form.salary.type.includes('percent') ? 'Процент' : 'Сумма'}
                       </label>
-                      <input type="number" value={form.salary.value} onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, value: +e.target.value } }))}
+                      <input type="number" value={form.salary.type === 'hourly' ? (form.salary.hourlyRate ?? 0) : form.salary.value}
+                        onChange={e => setForm(p => ({
+                          ...p,
+                          salary: p.salary.type === 'hourly'
+                            ? { ...p.salary, hourlyRate: +e.target.value }
+                            : { ...p.salary, value: +e.target.value }
+                        }))}
                         className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={0} />
                     </div>
                     <div className="flex-1">
@@ -495,6 +511,15 @@ export default function EmployeesPage() {
                         className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={0} />
                     </div>
                   </div>
+                  {form.salary.type === 'hourly' && (
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-0.5">Коэффициент сверхурочных (напр. 1.5)</label>
+                      <input type="number" value={form.salary.overtimeMultiplier ?? 1}
+                        onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, overtimeMultiplier: +e.target.value } }))}
+                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        min={1} step={0.1} />
+                    </div>
+                  )}
                 </div>
               </div>
               {!editItem && (

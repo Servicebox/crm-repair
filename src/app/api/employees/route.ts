@@ -13,8 +13,10 @@ const CreateEmployeeSchema = z.object({
   phone: z.string().optional(),
   locationId: z.string().optional(),
   salary: z.object({
-    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order']),
+    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
     value: z.number(),
+    hourlyRate: z.number().optional(),
+    overtimeMultiplier: z.number().optional(),
     salesPercent: z.number().optional(),
     guaranteed: z.number().optional(),
   }).optional(),
@@ -43,6 +45,7 @@ export async function POST(req: NextRequest) {
 
   const tempPassword = crypto.randomBytes(8).toString('hex')
   const token = crypto.randomBytes(32).toString('hex')
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
 
   const user = await User.create({
     name: data.name,
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     locationId: data.locationId,
     salary: data.salary,
     isEmailVerified: false,
-    emailVerificationToken: token,
+    emailVerificationToken: tokenHash,
     emailVerificationExpires: new Date(Date.now() + 48 * 60 * 60 * 1000),
   })
 

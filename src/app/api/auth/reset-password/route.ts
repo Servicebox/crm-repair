@@ -38,9 +38,11 @@ export async function POST(request: NextRequest) {
     }
 
     user.password = password
-    user.passwordResetToken = undefined
-    user.passwordResetExpires = undefined
     await user.save()
+    await User.updateOne(
+      { _id: user._id },
+      { $unset: { passwordResetToken: '', passwordResetExpires: '' } }
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {

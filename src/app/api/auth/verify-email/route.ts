@@ -23,10 +23,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Токен недействителен или истёк' }, { status: 400 })
     }
 
-    user.isEmailVerified = true
-    user.emailVerificationToken = undefined
-    user.emailVerificationExpires = undefined
-    await user.save()
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { isEmailVerified: true }, $unset: { emailVerificationToken: '', emailVerificationExpires: '' } }
+    )
 
     return NextResponse.json({ success: true, message: 'Email подтверждён' })
   } catch {

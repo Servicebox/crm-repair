@@ -38,7 +38,8 @@ function createTransporter() {
 }
 
 export async function sendVerificationEmail(email: string, token: string, name: string) {
-  const url = `${process.env.NEXTAUTH_URL}/verify-email?token=${token}`
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const url = `${baseUrl}/verify-email?token=${token}`
   const transporter = createTransporter()
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -57,7 +58,8 @@ export async function sendVerificationEmail(email: string, token: string, name: 
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const url = `${process.env.NEXTAUTH_URL}/reset-password?token=${token}`
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
+  const url = `${baseUrl}/reset-password?token=${token}`
   const transporter = createTransporter()
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
@@ -94,7 +96,7 @@ export async function sendOrderStatusNotification(
           <p style="margin:0;font-weight:600;color:#0369a1">Новый статус: ${escapeHtml(status)}</p>
           ${message ? `<p style="margin:8px 0 0;color:#0369a1">${escapeHtml(message)}</p>` : ''}
         </div>
-        <a href="${process.env.NEXTAUTH_URL}/track/${orderNumber}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px">Отследить заказ</a>
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'}/track/${orderNumber}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px">Отследить заказ</a>
       </div>
     `,
   })

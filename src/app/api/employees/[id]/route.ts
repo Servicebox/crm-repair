@@ -13,8 +13,10 @@ const UpdateEmployeeSchema = z.object({
   locationId: z.string().optional(),
   avatar: z.string().optional(),
   salary: z.object({
-    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order']),
+    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
     value: z.number(),
+    hourlyRate: z.number().optional(),
+    overtimeMultiplier: z.number().optional(),
     salesPercent: z.number().optional(),
     guaranteed: z.number().optional(),
   }).optional(),
