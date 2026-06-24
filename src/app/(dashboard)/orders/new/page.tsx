@@ -210,6 +210,17 @@ export default function NewOrderPage() {
     return
   }
 
+  function formatPhone(value: string): string {
+    const digits = value.replace(/\D/g, '')
+    const d = digits.startsWith('8') ? '7' + digits.slice(1) : digits.startsWith('7') ? digits : '7' + digits
+    const n = d.slice(0, 11)
+    if (n.length <= 1) return n.length ? '+7' : ''
+    if (n.length <= 4) return `+7 (${n.slice(1)}`
+    if (n.length <= 7) return `+7 (${n.slice(1, 4)}) ${n.slice(4)}`
+    if (n.length <= 9) return `+7 (${n.slice(1, 4)}) ${n.slice(4, 7)}-${n.slice(7)}`
+    return `+7 (${n.slice(1, 4)}) ${n.slice(4, 7)}-${n.slice(7, 9)}-${n.slice(9)}`
+  }
+
   const allItems = [...DEFAULT_CHECKLIST_ITEMS, ...customItems]
 
   return (
@@ -287,9 +298,9 @@ export default function NewOrderPage() {
               <label className="block text-sm font-medium mb-1">Телефон</label>
               <input
                 value={clientPhone}
-                onChange={e => setClientPhone(e.target.value)}
+                onChange={e => setClientPhone(formatPhone(e.target.value))}
                 className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-                placeholder="+7 999 ..."
+                placeholder="+7 (999) 999-99-99"
               />
               {clientResults && clientResults.length > 0 && (
                 <div className="mt-1 border rounded-lg bg-background shadow-sm text-sm">

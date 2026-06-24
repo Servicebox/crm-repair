@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock } from 'lucide-react'
+import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 
@@ -252,6 +252,19 @@ export default function EmployeesPage() {
                     )}
                     <div className="flex-1" />
                     <button onClick={() => openEdit(emp)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition"><Edit2 className="w-3.5 h-3.5" /></button>
+                    {isPrivileged && (
+                      <button
+                        onClick={async () => {
+                          if (!window.confirm(`Удалить сотрудника ${emp.name}? Это действие необратимо.`)) return
+                          await fetch(`/api/employees/${emp._id}`, { method: 'DELETE' })
+                          queryClient.invalidateQueries({ queryKey: ['employees'] })
+                        }}
+                        className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg transition"
+                        title="Удалить"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button onClick={() => handleToggleActive(emp)} className={cn('px-2 py-1 rounded-lg text-xs font-medium transition', emp.isActive ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200')}>
                       {emp.isActive ? 'Деактивировать' : 'Активировать'}
                     </button>

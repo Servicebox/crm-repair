@@ -6,6 +6,7 @@ import Order from '@/models/Order'
 import Client from '@/models/Client'
 import Company from '@/models/Company'
 import Notification from '@/models/Notification'
+import AuditLog from '@/models/AuditLog'
 
 const CreateOrderSchema = z.object({
   type: z.enum(['repair', 'service']).default('repair'),
@@ -25,7 +26,7 @@ const CreateOrderSchema = z.object({
   deviceAccessories: z.string().optional(),
   defectDescription: z.string().min(1, 'Опишите неисправность'),
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
-  clientType: z.enum(['b2c', 'b2b']).default('b2c'),
+  clientType: z.enum(['b2c', 'b2b', 'individual', 'ip', 'company']).default('individual'),
   masterId: z.string().optional(),
   masterName: z.string().optional(),
   locationId: z.string().optional(),
@@ -183,6 +184,19 @@ export async function POST(req: NextRequest) {
       orderId: order._id,
       orderNumber: number,
     })
+
+    try {
+      await AuditLog.create({
+        type: 'order',
+        action: 'create',
+        description: `Создан заказ ${number} — ${data.deviceType}${data.deviceBrand ? ` ${data.deviceBrand}` : ''}${data.deviceModel ? ` ${data.deviceModel}` : ''}, ${data.defectDescription.slice(0, 60)}`,
+        userId: session!.user.id,
+        userName: session!.user.name ?? 'Система',
+        ip: req.headers.get('x-forwarded-for') ?? req.headers.get('x-real-ip') ?? undefined,
+      })
+    } catch {
+      // audit log is non-critical, don't fail the request
+    }
 
     return ok(order, 201)
   } catch (error) {

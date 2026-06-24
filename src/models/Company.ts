@@ -44,6 +44,8 @@ export interface ICompany extends Document {
   telegramBotToken?: string
   vkGroupId?: string
   vkAccessToken?: string
+  receptionSettings?: unknown
+  labelSettings?: unknown
   createdAt: Date
   updatedAt: Date
 }
@@ -132,6 +134,8 @@ const CompanySchema = new Schema<ICompany>(
     telegramBotToken: String,
     vkGroupId: String,
     vkAccessToken: String,
+    receptionSettings: { type: Schema.Types.Mixed, default: null },
+    labelSettings: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 )
