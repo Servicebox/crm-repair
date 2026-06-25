@@ -4,10 +4,8 @@ import { connectToDatabase } from '@/lib/mongodb'
 import ImportJob from '@/models/ImportJob'
 import User from '@/models/User'
 import mongoose from 'mongoose'
-import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
-import { Readable } from 'stream'
 import type { ImportFileType } from '@/models/ImportJob'
 
 export const dynamic = 'force-dynamic'
@@ -15,16 +13,6 @@ export const maxDuration = 60
 
 const UPLOAD_BASE = process.env.UPLOAD_DIR ?? '/tmp/crm-imports'
 const MAX_FILE_SIZE = 100 * 1024 * 1024  // 100 MB
-
-const ALLOWED_MIME: Record<string, ImportFileType> = {
-  'text/csv': 'csv',
-  'application/csv': 'csv',
-  'text/plain': 'csv',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': 'xlsx',
-  'application/vnd.ms-excel': 'xls',
-  'text/xml': 'xml',
-  'application/xml': 'xml',
-}
 
 const ALLOWED_EXT: Record<string, ImportFileType> = {
   '.csv': 'csv',
@@ -41,16 +29,18 @@ const MAGIC_BYTES: Array<{ type: ImportFileType; offset: number; bytes: number[]
 ]
 
 function checkMagicBytes(filePath: string): ImportFileType | null {
-  const fd = fs.openSync(filePath, 'r')
-  const buf = Buffer.alloc(8)
-  fs.readSync(fd, buf, 0, 8, 0)
-  fs.closeSync(fd)
-
-  for (const sig of MAGIC_BYTES) {
-    const match = sig.bytes.every((b, i) => buf[sig.offset + i] === b)
-    if (match) return sig.type
+  try {
+    const fd = fs.openSync(filePath, 'r')
+    const buf = Buffer.alloc(8)
+    fs.readSync(fd, buf, 0, 8, 0)
+    fs.closeSync(fd)
+    for (const sig of MAGIC_BYTES) {
+      const match = sig.bytes.every((b, i) => buf[sig.offset + i] === b)
+      if (match) return sig.type
+    }
+  } catch {
+    // ignore — extension-based detection will be used
   }
-  // CSV: no magic bytes, detected by extension/mime
   return null
 }
 
@@ -60,8 +50,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  // session.user.companyId is populated by the session callback via a fresh DB lookup.
-  // If that lookup failed (cold start, transient error), fall back to a direct DB query here.
+  // Resolve companyId: session first, then direct DB lookup as fallback
   await connectToDatabase()
   let companyId = session.user.companyId
   if (!companyId && session.user.id) {
@@ -71,7 +60,7 @@ export async function POST(req: NextRequest) {
         .lean() as { companyId?: mongoose.Types.ObjectId } | null
       companyId = userDoc?.companyId?.toString() ?? ''
     } catch {
-      // leave empty, will hit the check below
+      // will hit check below
     }
   }
   if (!companyId) {
@@ -88,76 +77,73 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Лимит: не более 5 активных импортов в час' }, { status: 429 })
   }
 
-  // Prepare upload directory BEFORE parsing so formidable knows where to save
-  const jobDir = path.join(UPLOAD_BASE, companyId, new mongoose.Types.ObjectId().toString())
-  fs.mkdirSync(jobDir, { recursive: true })
-
-  // Convert Next.js Web ReadableStream → Node.js Readable for formidable.
-  // formidable expects an http.IncomingMessage; we attach headers so it can
-  // read content-type (multipart boundary) and content-length.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const nodeStream = Readable.fromWeb(req.body as any)
-  const fakeIncoming = Object.assign(nodeStream, {
-    headers: Object.fromEntries(req.headers.entries()),
-    method: req.method,
-    url: req.url,
-  })
-
-  const form = formidable({
-    uploadDir: jobDir,
-    keepExtensions: true,
-    maxFileSize: MAX_FILE_SIZE,
-    maxFiles: 1,
-    filter: part => {
-      return part.name === 'file'
-    },
-  })
-
-  let uploadedFile: formidable.File
+  // Parse multipart form using the built-in Web API (no formidable needed)
+  let uploadedFile: File
   try {
-    const [, files] = await form.parse(fakeIncoming as unknown as import('http').IncomingMessage)
-    const fileField = files.file
-    if (!fileField || !fileField[0]) {
+    const formData = await req.formData()
+    const field = formData.get('file')
+    if (!field || typeof field === 'string') {
       return NextResponse.json({ success: false, error: 'Файл не найден в запросе' }, { status: 400 })
     }
-    uploadedFile = fileField[0]
+    uploadedFile = field as File
+    if (uploadedFile.size > MAX_FILE_SIZE) {
+      return NextResponse.json({
+        success: false,
+        error: `Файл слишком большой (максимум ${MAX_FILE_SIZE / 1024 / 1024} МБ)`,
+      }, { status: 400 })
+    }
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Ошибка загрузки'
+    const msg = err instanceof Error ? err.message : 'Ошибка чтения файла'
     return NextResponse.json({ success: false, error: msg }, { status: 400 })
   }
 
-  // Determine file type from extension + MIME
-  const originalName = uploadedFile.originalFilename ?? 'file'
+  // Determine file type from extension
+  const originalName = uploadedFile.name
   const ext = path.extname(originalName).toLowerCase()
-  let fileType: ImportFileType = ALLOWED_EXT[ext] ?? ALLOWED_MIME[uploadedFile.mimetype ?? ''] ?? 'csv'
+  let fileType: ImportFileType = ALLOWED_EXT[ext] ?? 'csv'
 
-  // Validate with magic bytes (prevents extension spoofing)
-  const magic = checkMagicBytes(uploadedFile.filepath)
-  if (magic && magic !== fileType && fileType !== 'csv') {
-    fileType = magic
-  }
+  // Save to disk
+  const jobDir = path.join(UPLOAD_BASE, companyId, new mongoose.Types.ObjectId().toString())
+  try {
+    fs.mkdirSync(jobDir, { recursive: true })
+    const savedFilename = `upload_${Date.now()}${ext}`
+    const filePath = path.join(jobDir, savedFilename)
 
-  if (!Object.values(ALLOWED_EXT).includes(fileType)) {
-    fs.unlinkSync(uploadedFile.filepath)
-    return NextResponse.json({ success: false, error: 'Неподдерживаемый формат файла' }, { status: 400 })
-  }
+    const buffer = Buffer.from(await uploadedFile.arrayBuffer())
+    fs.writeFileSync(filePath, buffer)
 
-  const job = await ImportJob.create({
-    organization_id: new mongoose.Types.ObjectId(companyId),
-    created_by: new mongoose.Types.ObjectId(session.user.id),
-    file_type: fileType,
-    original_filename: originalName,
-    storage_path: uploadedFile.filepath,
-    status: 'uploaded',
-  })
+    // Validate with magic bytes (prevents extension spoofing)
+    const magic = checkMagicBytes(filePath)
+    if (magic && magic !== fileType && fileType !== 'csv') {
+      fileType = magic
+    }
 
-  return NextResponse.json({
-    success: true,
-    data: {
-      id: job._id.toString(),
+    if (!Object.values(ALLOWED_EXT).includes(fileType)) {
+      fs.unlinkSync(filePath)
+      return NextResponse.json({ success: false, error: 'Неподдерживаемый формат файла' }, { status: 400 })
+    }
+
+    const job = await ImportJob.create({
+      organization_id: new mongoose.Types.ObjectId(companyId),
+      created_by: new mongoose.Types.ObjectId(session.user.id),
       file_type: fileType,
       original_filename: originalName,
-      status: job.status,
-    },
-  }, { status: 201 })
+      storage_path: filePath,
+      status: 'uploaded',
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: job._id.toString(),
+        file_type: fileType,
+        original_filename: originalName,
+        status: job.status,
+      },
+    }, { status: 201 })
+  } catch (err: unknown) {
+    try { fs.rmSync(jobDir, { recursive: true, force: true }) } catch { /* ignore */ }
+    const msg = err instanceof Error ? err.message : 'Ошибка сохранения файла'
+    return NextResponse.json({ success: false, error: msg }, { status: 500 })
+  }
 }

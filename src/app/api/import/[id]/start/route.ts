@@ -24,10 +24,15 @@ export async function POST(
 
   await connectToDatabase()
 
-  const job = await ImportJob.findOne({
-    _id: params.id,
-    organization_id: new mongoose.Types.ObjectId(companyId),
-  })
+  let job
+  try {
+    job = await ImportJob.findOne({
+      _id: params.id,
+      organization_id: new mongoose.Types.ObjectId(companyId),
+    })
+  } catch {
+    return NextResponse.json({ success: false, error: 'Не найден' }, { status: 404 })
+  }
 
   if (!job) return NextResponse.json({ success: false, error: 'Не найден' }, { status: 404 })
 
