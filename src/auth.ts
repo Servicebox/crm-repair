@@ -19,6 +19,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       session.user.id = token.id as string
 
+      // Apply JWT-cached values immediately as fallback.
+      // If the DB lookup below succeeds, these will be overwritten with fresh data.
+      // If it fails, the user still gets a working session from their last login.
+      if (token.companyId !== undefined) session.user.companyId = token.companyId as string
+      if (token.dbName) session.user.dbName = token.dbName as string
+
       try {
         await connectToDatabase()
 
@@ -48,7 +54,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       } catch {
         // Never let the session callback throw — Auth.js v5 wraps uncaught errors
         // in callbacks as CredentialsSignin, which masks the real cause and blocks
-        // all auth() calls in Route Handlers. Return what we have (id is already set).
+        // all auth() calls in Route Handlers. JWT-cached values remain active.
       }
 
       return session

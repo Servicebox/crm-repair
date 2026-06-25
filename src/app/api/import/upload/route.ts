@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { connectToDatabase } from '@/lib/mongodb'
 import ImportJob from '@/models/ImportJob'
+import User from '@/models/User'
 import mongoose from 'mongoose'
 import formidable from 'formidable'
 import fs from 'fs'
@@ -59,13 +60,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
-  const companyId = session.user.companyId
+  // session.user.companyId is populated by the session callback via a fresh DB lookup.
+  // If that lookup failed (cold start, transient error), fall back to a direct DB query here.
+  await connectToDatabase()
+  let companyId = session.user.companyId
+  if (!companyId && session.user.id) {
+    try {
+      const userDoc = await User.findById(session.user.id)
+        .select('companyId')
+        .lean() as { companyId?: mongoose.Types.ObjectId } | null
+      companyId = userDoc?.companyId?.toString() ?? ''
+    } catch {
+      // leave empty, will hit the check below
+    }
+  }
   if (!companyId) {
     return NextResponse.json({ success: false, error: 'Нет привязки к организации' }, { status: 403 })
   }
 
   // Rate limiting: max 5 active imports per org in the last hour
-  await connectToDatabase()
   const recentCount = await ImportJob.countDocuments({
     organization_id: new mongoose.Types.ObjectId(companyId),
     created_at: { $gte: new Date(Date.now() - 60 * 60 * 1000) },

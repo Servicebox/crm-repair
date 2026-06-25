@@ -22,7 +22,10 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id?: string
-    // role, companyId, dbName are intentionally absent — they are loaded
-    // fresh from DB in the auth.ts session callback, never from the token.
+    // companyId / dbName are cached in the token as a fallback for when the
+    // DB lookup in the session callback fails (connection busy, cold start).
+    // role is intentionally NOT cached here — stale role = privilege escalation risk.
+    companyId?: string
+    dbName?: string
   }
 }

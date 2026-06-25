@@ -23,10 +23,11 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        // role, companyId, dbName are NOT stored in the JWT.
-        // Stale role data in a signed token is a privilege-escalation risk:
-        // a revoked admin would keep elevated access until the 8-hour token expires.
-        // Instead, these are loaded fresh from DB in the auth.ts session callback.
+        // Cache companyId + dbName in the JWT so the session callback can fall back
+        // to these values if the DB lookup fails (cold start, connection busy).
+        // role is intentionally NOT cached — stale role is a privilege-escalation risk.
+        token.companyId = user.companyId ?? ''
+        token.dbName = user.dbName ?? ''
       }
       return token
     },
