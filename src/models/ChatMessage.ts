@@ -5,6 +5,7 @@ export interface IChatMessage extends Document {
   scope: 'global' | 'internal'
   userId: mongoose.Types.ObjectId
   userName: string
+  companyName?: string  // название организации отправителя (для "general" комнаты)
   userAvatar?: string
   text: string
   attachments?: Array<{ name: string; url: string; type: string }>
@@ -19,6 +20,7 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     scope: { type: String, enum: ['global', 'internal'], default: 'global' },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     userName: { type: String, required: true },
+    companyName: { type: String, default: null },
     userAvatar: String,
     text: { type: String, required: true, trim: true },
     attachments: [{ name: String, url: String, type: String }],

@@ -11,6 +11,7 @@ interface Message {
   _id: string
   userId: string
   userName: string
+  companyName?: string | null
   text: string
   scope: 'global' | 'internal'
   createdAt: string
@@ -44,6 +45,7 @@ export default function ChatPage() {
       return json.data as Message[]
     },
     staleTime: 0,
+    refetchInterval: 5000, // polling fallback — messages arrive in ≤5s even if SSE fails
   })
 
   // SSE for real-time updates

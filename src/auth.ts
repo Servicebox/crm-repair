@@ -34,7 +34,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         let dbName = getDefaultDbName()
 
         if (user.companyId) {
-          const company = await Company.findById(user.companyId).select('dbName slug').lean()
+          const company = await Company.findById(user.companyId).select('dbName slug isActive').lean() as { dbName?: string; slug?: string; _id?: unknown; isActive?: boolean } | null
+          if (!company) return null
+          // Block login if the organization is deactivated by platform admin
+          if (company.isActive === false) return null
           if (company?.dbName) dbName = company.dbName
           if (!companyId) companyId = company?._id?.toString() ?? ''
         } else {

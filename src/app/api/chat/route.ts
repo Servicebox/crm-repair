@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
+import { connectToDatabase } from '@/lib/mongodb'
+import Company from '@/models/Company'
 
 const PostMessageSchema = z.object({
   room: z.string().max(100).optional(),
@@ -44,11 +46,25 @@ export async function POST(req: NextRequest) {
     const roomDoc = await ChatRoom.findOne({ slug: roomSlug }).lean() as { scope?: 'global' | 'internal' } | null
     const scope: 'global' | 'internal' = roomDoc?.scope ?? 'global'
 
+    // Resolve sender name: prefer session name, fall back to email prefix
+    const senderName = session!.user.name?.trim()
+      || session!.user.email?.split('@')[0]
+      || 'Пользователь'
+
+    // For general/global room, attach the company name so receivers see the org
+    let companyName: string | null = null
+    if (scope === 'global') {
+      await connectToDatabase()
+      const company = await Company.findOne({ dbName: session!.user.dbName }).select('name').lean() as { name?: string } | null
+      companyName = company?.name ?? null
+    }
+
     const message = await ChatMessage.create({
       roomId: roomSlug,
       scope,
       userId: session!.user.id,
-      userName: session!.user.name ?? 'Пользователь',
+      userName: senderName,
+      companyName,
       text: data.text,
     })
     return ok(message, 201)
