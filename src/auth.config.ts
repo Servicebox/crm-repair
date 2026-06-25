@@ -23,18 +23,19 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        token.role = user.role
-        token.companyId = user.companyId
-        token.dbName = user.dbName
+        // role, companyId, dbName are NOT stored in the JWT.
+        // Stale role data in a signed token is a privilege-escalation risk:
+        // a revoked admin would keep elevated access until the 8-hour token expires.
+        // Instead, these are loaded fresh from DB in the auth.ts session callback.
       }
       return token
     },
     session({ session, token }) {
-      if (token && session.user) {
-        if (token.id) session.user.id = token.id as string
-        if (token.role) session.user.role = token.role as string
-        if (token.companyId) session.user.companyId = token.companyId as string
-        if (token.dbName) session.user.dbName = token.dbName as string
+      // Minimal base: only map the stable user id.
+      // role / companyId / dbName are populated by the session callback in auth.ts
+      // which performs a fresh DB lookup on every session reconstruction.
+      if (token?.id && session.user) {
+        session.user.id = token.id as string
       }
       return session
     },

@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
-import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 
 const UpdateServiceSchema = z.object({
   name: z.string().min(1).optional(),
@@ -14,7 +14,7 @@ const UpdateServiceSchema = z.object({
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireTenantAuth()
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { Service } } = auth
 
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireTenantAuth()
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { Service } } = auth
 

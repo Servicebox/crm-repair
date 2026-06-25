@@ -12,6 +12,44 @@ class EmailNotVerifiedError extends CredentialsSignin {
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    // Keep the jwt and authorized callbacks from authConfig unchanged.
+    // Override only `session` to load role / companyId / dbName fresh from DB
+    // on every session reconstruction instead of reading stale values from the token.
+    ...authConfig.callbacks,
+    async session({ session, token }) {
+      if (!token?.id || !session.user) return session
+
+      session.user.id = token.id as string
+
+      await connectToDatabase()
+
+      const dbUser = await User.findById(token.id)
+        .select('role companyId isActive')
+        .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean } | null
+
+      if (!dbUser?.isActive) return session
+
+      session.user.role = dbUser.role ?? ''
+
+      const rawCompanyId = dbUser.companyId?.toString() ?? ''
+      if (rawCompanyId) {
+        session.user.companyId = rawCompanyId
+        const company = await Company.findById(rawCompanyId)
+          .select('dbName')
+          .lean() as { dbName?: string } | null
+        session.user.dbName = company?.dbName ?? getDefaultDbName()
+      } else {
+        const fallbackCompany = await Company.findOne().select('_id dbName').lean() as { _id: { toString(): string }; dbName?: string } | null
+        if (fallbackCompany) {
+          session.user.companyId = fallbackCompany._id.toString()
+          session.user.dbName = fallbackCompany.dbName ?? getDefaultDbName()
+        }
+      }
+
+      return session
+    },
+  },
   providers: [
     Credentials({
       credentials: {

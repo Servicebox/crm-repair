@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { connectToDatabase } from '@/lib/mongodb'
-import { requireAuth, ok, err } from '@/lib/api-helpers'
+import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
 
 const ChargeSchema = z.object({
@@ -11,7 +11,7 @@ const ChargeSchema = z.object({
 })
 
 export async function POST(req: NextRequest) {
-  const authResult = await requireAuth()
+  const authResult = await requireTenantAuth()
   if (authResult.error) return authResult.error
 
   let body: unknown

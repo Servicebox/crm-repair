@@ -22,7 +22,12 @@ export async function requireRole(roles: string[]) {
 
 export async function requireTenantAuth() {
   const session = await auth()
-  if (!session?.user) {
+  if (!session?.user?.id) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  // role and dbName are populated by auth.ts session callback (fresh DB load).
+  // If role is empty the user account was deactivated after their last login.
+  if (!session.user.role) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
   const dbName = session.user.dbName || getDefaultDbName()

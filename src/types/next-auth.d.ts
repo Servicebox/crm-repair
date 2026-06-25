@@ -21,9 +21,8 @@ declare module 'next-auth' {
 
 declare module 'next-auth/jwt' {
   interface JWT {
-    role?: string
     id?: string
-    companyId?: string
-    dbName?: string
+    // role, companyId, dbName are intentionally absent — they are loaded
+    // fresh from DB in the auth.ts session callback, never from the token.
   }
 }

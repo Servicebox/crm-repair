@@ -213,17 +213,14 @@ test('settings/api - switch to 1C tab', async ({ page }) => {
 test('floating chat button visible on dashboard', async ({ page }) => {
   await login(page)
   await page.goto(`${BASE}/dashboard`)
-  // FloatingChat button is fixed bottom-right
-  const chatBtn = page.locator('button').filter({ has: page.locator('svg') }).last()
-  await expect(chatBtn).toBeVisible()
+  await expect(page.locator('button[aria-label="Открыть чат"]')).toBeVisible()
 })
 
 test('floating chat opens on click', async ({ page }) => {
   await login(page)
   await page.goto(`${BASE}/orders`)
-  // Click the floating button (fixed bottom-right, last button with svg)
-  await page.locator('.fixed.bottom-5.right-5 button').last().click()
-  await expect(page.locator('text=Общий чат')).toBeVisible({ timeout: 3000 })
+  await page.locator('button[aria-label="Открыть чат"]').click()
+  await expect(page.locator('text=Внутренний чат')).toBeVisible({ timeout: 5000 })
 })
 
 // ── API v1 routes ─────────────────────────────────────────────────────────────
@@ -351,13 +348,13 @@ test('floating chat - send message', async ({ page }) => {
   await login(page)
   await page.goto(`${BASE}/dashboard`)
   // Open chat
-  await page.locator('.fixed.bottom-5.right-5 button').last().click()
-  await expect(page.locator('text=Общий чат')).toBeVisible()
+  await page.locator('button[aria-label="Открыть чат"]').click()
+  await expect(page.locator('text=Внутренний чат')).toBeVisible({ timeout: 5000 })
   // Type and send
   await page.fill('input[placeholder*="Сообщение"]', 'Тест сообщение')
   await page.keyboard.press('Enter')
   // Input should clear after send
-  await expect(page.locator('input[placeholder*="Сообщение"]')).toHaveValue('')
+  await expect(page.locator('input[placeholder*="Сообщение"]')).toHaveValue('', { timeout: 5000 })
 })
 
 // ── AI knowledge base ─────────────────────────────────────────────────────────

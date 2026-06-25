@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
-import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
+import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 
 const UpdateProductSchema = z.object({
   name: z.string().min(1).optional(),
@@ -27,7 +27,7 @@ function isValidObjectId(id: string) {
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireTenantAuth()
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { Product } } = auth
 
@@ -46,7 +46,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
-  const auth = await requireTenantAuth()
+  const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { Product } } = auth
 
