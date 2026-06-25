@@ -4,7 +4,8 @@ import { timingSafeEqual } from 'crypto'
 export function validateApiKey(request: NextRequest): boolean {
   const envKey = process.env.ADMIN_API_KEY
   if (!envKey) return false
-  const auth = request.headers.get('authorization') ?? request.nextUrl.searchParams.get('api_key') ?? ''
+  // Only accept via Authorization header — query-string keys appear in server logs
+  const auth = request.headers.get('authorization') ?? request.headers.get('x-api-key') ?? ''
   const key = auth.replace('Bearer ', '').trim()
   if (!key) return false
   try {

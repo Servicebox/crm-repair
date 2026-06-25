@@ -25,16 +25,25 @@ export async function GET() {
 
   const rooms = await ChatRoom.find({}).sort({ scope: 1, createdAt: 1 }).lean()
 
-  // Attach last message + unread count per room
-  const roomsWithMeta = await Promise.all(
-    rooms.map(async (room) => {
-      const lastMsg = await ChatMessage.findOne({ roomId: room.slug })
-        .sort({ createdAt: -1 })
-        .select('text userName createdAt')
-        .lean()
-      return { ...room, lastMessage: lastMsg ?? null }
-    })
-  )
+  // Fetch last message per room in a single aggregation instead of N findOne calls
+  const roomSlugs = rooms.map(r => r.slug)
+  const lastMessages = await ChatMessage.aggregate([
+    { $match: { roomId: { $in: roomSlugs } } },
+    { $sort: { createdAt: -1 } },
+    { $group: {
+      _id: '$roomId',
+      text: { $first: '$text' },
+      userName: { $first: '$userName' },
+      createdAt: { $first: '$createdAt' },
+    }},
+  ])
+
+  const lastMsgByRoom = new Map(lastMessages.map(m => [m._id as string, m]))
+
+  const roomsWithMeta = rooms.map(room => ({
+    ...room,
+    lastMessage: lastMsgByRoom.get(room.slug) ?? null,
+  }))
 
   return ok(roomsWithMeta)
 }
@@ -53,8 +62,9 @@ export async function POST(req: NextRequest) {
     .replace(/[^a-zа-яё0-9\s]/gi, '')
     .trim()
     .replace(/\s+/g, '-')
-    .substring(0, 40) + '-' + Date.now().toString(36)
+    .substring(0, 40)
 
+  // Check for duplicate name (without timestamp suffix so names remain unique)
   const existing = await ChatRoom.findOne({ slug })
   if (existing) return err('Комната с таким названием уже существует', 409)
 

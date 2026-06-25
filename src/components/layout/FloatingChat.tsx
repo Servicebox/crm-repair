@@ -2,7 +2,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { MessageCircle, X, Send, Loader2, ChevronDown } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { MessageCircle, X, Send, Loader2, ChevronDown, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MessageBubble from '@/components/chat/MessageBubble'
 
@@ -17,15 +18,20 @@ interface Message {
 const ROOM = 'general'
 
 export default function FloatingChat() {
+  const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [unread, setUnread] = useState(0)
   const [lastSeenCount, setLastSeenCount] = useState(0)
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // All hooks must run before any conditional return
+  const isOnChatPage = pathname === '/chat'
 
   const { data: messages } = useQuery({
     queryKey: ['chat', ROOM],
@@ -35,20 +41,27 @@ export default function FloatingChat() {
       return json.data as Message[]
     },
     staleTime: 0,
+    enabled: !isOnChatPage, // don't fetch on /chat — the full page already does this
   })
 
-  // SSE subscription
+  // SSE subscription — disabled on /chat page to avoid double connections
   useEffect(() => {
+    if (isOnChatPage) return
     const es = new EventSource(`/api/chat/stream?room=${ROOM}`)
     es.onmessage = (e) => {
-      const msg = JSON.parse(e.data) as Message
-      queryClient.setQueryData(['chat', ROOM], (prev: Message[] = []) => {
-        if (prev.some(m => m._id === msg._id)) return prev
-        return [...prev, msg]
-      })
+      try {
+        const msg = JSON.parse(e.data) as Message
+        queryClient.setQueryData(['chat', ROOM], (prev: Message[] = []) => {
+          if (prev.some(m => m._id === msg._id)) return prev
+          return [...prev, msg]
+        })
+      } catch { /* malformed SSE frame */ }
+    }
+    es.onerror = () => {
+      // browser will reconnect automatically via Last-Event-ID
     }
     return () => es.close()
-  }, [queryClient])
+  }, [isOnChatPage, queryClient])
 
   useEffect(() => {
     if (!messages) return
@@ -58,31 +71,52 @@ export default function FloatingChat() {
     } else {
       setUnread(Math.max(0, messages.length - lastSeenCount))
     }
-  }, [messages, open])
+  }, [messages, open, lastSeenCount])
 
   useEffect(() => {
-    if (open) {
-      setTimeout(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-        inputRef.current?.focus()
-      }, 100)
-      setUnread(0)
-      setLastSeenCount(messages?.length ?? 0)
-    }
-  }, [open])
+    if (!open) return
+    const id = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      inputRef.current?.focus()
+    }, 100)
+    setUnread(0)
+    setLastSeenCount(messages?.length ?? 0)
+    return () => clearTimeout(id)
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Don't show on /chat page — full page chat is already there
+  if (isOnChatPage) return null
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim() || sending) return
+    const draft = text.trim()
     setSending(true)
-    await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), room: ROOM }),
-    })
-    setText('')
-    setSending(false)
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
+    setSendError(null)
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: draft, room: ROOM }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? `HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      const msg = json.data as Message
+      queryClient.setQueryData(['chat', ROOM], (prev: Message[] = []) => {
+        if (prev.some(m => m._id === msg._id)) return prev
+        return [...prev, msg]
+      })
+      setText('')
+      const id = setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+      return () => clearTimeout(id)
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Ошибка отправки')
+    } finally {
+      setSending(false)
+    }
   }
 
   const msgs = messages ?? []
@@ -122,11 +156,18 @@ export default function FloatingChat() {
             <div ref={bottomRef} />
           </div>
 
+          {sendError && (
+            <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950 border-t border-red-200 dark:border-red-800 flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
+              <AlertCircle className="w-3 h-3 shrink-0" />
+              {sendError}
+            </div>
+          )}
+
           <form onSubmit={handleSend} className="p-2.5 border-t flex gap-1.5 shrink-0">
             <input
               ref={inputRef}
               value={text}
-              onChange={e => setText(e.target.value)}
+              onChange={e => { setText(e.target.value); setSendError(null) }}
               placeholder="Сообщение..."
               className="flex-1 px-3 py-2 text-sm border rounded-full outline-none focus:ring-2 focus:ring-blue-500 bg-background"
               maxLength={500}

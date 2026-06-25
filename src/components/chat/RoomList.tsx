@@ -12,6 +12,40 @@ interface ChatRoom {
   lastMessage?: { text: string; userName: string; createdAt: string } | null
 }
 
+interface RoomItemProps {
+  room: ChatRoom
+  isActive: boolean
+  onSelect: (slug: string) => void
+}
+
+// Defined at module scope to avoid remount on every RoomList render
+function RoomItem({ room, isActive, onSelect }: RoomItemProps) {
+  return (
+    <button
+      onClick={() => onSelect(room.slug)}
+      className={cn(
+        'w-full text-left px-3 py-2.5 rounded-xl transition-colors',
+        isActive
+          ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+          : 'hover:bg-muted/60 text-foreground'
+      )}
+    >
+      <div className="flex items-center gap-2">
+        {room.scope === 'global'
+          ? <Globe className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+          : <Lock className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+        }
+        <span className="text-sm font-medium truncate">{room.name}</span>
+      </div>
+      {room.lastMessage && (
+        <div className="text-[11px] text-muted-foreground mt-0.5 truncate pl-5">
+          {room.lastMessage.userName}: {room.lastMessage.text}
+        </div>
+      )}
+    </button>
+  )
+}
+
 interface Props {
   activeRoom: string
   onSelect: (slug: string) => void
@@ -56,34 +90,6 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
   const globalRooms = (rooms ?? []).filter(r => r.scope === 'global')
   const internalRooms = (rooms ?? []).filter(r => r.scope === 'internal')
 
-  function RoomItem({ room }: { room: ChatRoom }) {
-    const isActive = room.slug === activeRoom
-    return (
-      <button
-        onClick={() => onSelect(room.slug)}
-        className={cn(
-          'w-full text-left px-3 py-2.5 rounded-xl transition-colors',
-          isActive
-            ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-            : 'hover:bg-muted/60 text-foreground'
-        )}
-      >
-        <div className="flex items-center gap-2">
-          {room.scope === 'global'
-            ? <Globe className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-            : <Lock className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-          }
-          <span className="text-sm font-medium truncate">{room.name}</span>
-        </div>
-        {room.lastMessage && (
-          <div className="text-[11px] text-muted-foreground mt-0.5 truncate pl-5">
-            {room.lastMessage.userName}: {room.lastMessage.text}
-          </div>
-        )}
-      </button>
-    )
-  }
-
   if (isLoading) {
     return (
       <div className="flex justify-center pt-8">
@@ -94,13 +100,13 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
 
   return (
     <div className="flex flex-col gap-1 p-2">
-      {/* Global section */}
       <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">
         Общие
       </div>
-      {globalRooms.map(r => <RoomItem key={r._id} room={r} />)}
+      {globalRooms.map(r => (
+        <RoomItem key={r._id} room={r} isActive={r.slug === activeRoom} onSelect={onSelect} />
+      ))}
 
-      {/* Internal section */}
       <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2 flex items-center justify-between">
         <span>Внутренние</span>
         {canCreate && (
@@ -113,7 +119,9 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
           </button>
         )}
       </div>
-      {internalRooms.map(r => <RoomItem key={r._id} room={r} />)}
+      {internalRooms.map(r => (
+        <RoomItem key={r._id} room={r} isActive={r.slug === activeRoom} onSelect={onSelect} />
+      ))}
 
       {internalRooms.length === 0 && !showCreate && (
         <div className="px-3 py-2 text-xs text-muted-foreground">
@@ -121,7 +129,6 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
         </div>
       )}
 
-      {/* Create room form */}
       {showCreate && (
         <div className="mt-2 p-2.5 border rounded-xl bg-muted/30 space-y-2">
           <div className="flex items-center justify-between">
@@ -147,7 +154,7 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
                   newScope === s ? 'bg-blue-600 text-white border-blue-600' : 'hover:bg-accent'
                 )}
               >
-                {s === 'global' ? '🌐 Общий' : '🔒 Внутренний'}
+                {s === 'global' ? 'Общий' : 'Внутренний'}
               </button>
             ))}
           </div>

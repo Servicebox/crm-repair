@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
   const limit = 50
 
   const filter: Record<string, unknown> = { roomId: room }
-  if (before) filter.createdAt = { $lt: new Date(before) }
+  if (before) {
+    const d = new Date(before)
+    if (!isNaN(d.getTime())) filter.createdAt = { $lt: d }
+  }
 
   const messages = await ChatMessage.find(filter)
     .sort({ createdAt: -1 })

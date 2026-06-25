@@ -161,6 +161,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
                   paymentMethod: parsed.paymentMethod,
                   total: order.finalCost,
                   clientEmail: order.clientEmail ?? undefined,
+                  dbName: session!.user.dbName,
                 }),
               })
             }

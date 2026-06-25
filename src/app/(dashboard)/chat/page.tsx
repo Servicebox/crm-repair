@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Send, Loader2, Globe, Lock, ArrowLeft, MessageCircle } from 'lucide-react'
+import { Send, Loader2, Globe, Lock, ArrowLeft, MessageCircle, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MessageBubble from '@/components/chat/MessageBubble'
 import RoomList from '@/components/chat/RoomList'
@@ -29,13 +29,13 @@ export default function ChatPage() {
   const [activeRoom, setActiveRoom] = useState('general')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState<string | null>(null)
   const [showSidebar, setShowSidebar] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
 
-  // Load messages via query (initial + refetch fallback)
   const { data: messages, isLoading } = useQuery({
     queryKey: ['chat', activeRoom],
     queryFn: async () => {
@@ -50,16 +50,19 @@ export default function ChatPage() {
   useEffect(() => {
     const es = new EventSource(`/api/chat/stream?room=${activeRoom}`)
     es.onmessage = (e) => {
-      const msg = JSON.parse(e.data) as Message
-      queryClient.setQueryData(['chat', activeRoom], (prev: Message[] = []) => {
-        if (prev.some(m => m._id === msg._id)) return prev
-        return [...prev, msg]
-      })
+      try {
+        const msg = JSON.parse(e.data) as Message
+        queryClient.setQueryData(['chat', activeRoom], (prev: Message[] = []) => {
+          if (prev.some(m => m._id === msg._id)) return prev
+          return [...prev, msg]
+        })
+      } catch { /* malformed SSE frame */ }
     }
+    // onerror: browser auto-reconnects with Last-Event-ID; no explicit action needed
+    es.onerror = () => {}
     return () => es.close()
   }, [activeRoom, queryClient])
 
-  // Get current room meta from rooms cache
   const { data: rooms } = useQuery({
     queryKey: ['chat-rooms'],
     queryFn: async () => {
@@ -75,6 +78,7 @@ export default function ChatPage() {
   const handleRoomSelect = useCallback((slug: string) => {
     setActiveRoom(slug)
     setText('')
+    setSendError(null)
     setShowSidebar(false)
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -89,22 +93,40 @@ export default function ChatPage() {
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim() || sending) return
+    const draft = text.trim()
     setSending(true)
-    await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: text.trim(), room: activeRoom }),
-    })
-    setText('')
-    setSending(false)
-    inputRef.current?.focus()
+    setSendError(null)
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: draft, room: activeRoom }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error ?? `HTTP ${res.status}`)
+      }
+      const json = await res.json()
+      // Immediately add to cache — don't wait for SSE tick
+      const msg = json.data as Message
+      queryClient.setQueryData(['chat', activeRoom], (prev: Message[] = []) => {
+        if (prev.some(m => m._id === msg._id)) return prev
+        return [...prev, msg]
+      })
+      setText('')
+      inputRef.current?.focus()
+    } catch (error) {
+      setSendError(error instanceof Error ? error.message : 'Ошибка отправки')
+    } finally {
+      setSending(false)
+    }
   }
 
   const msgs = messages ?? []
 
   return (
     <div className="flex h-full overflow-hidden">
-      {/* Sidebar — always visible on desktop, toggleable on mobile */}
+      {/* Sidebar */}
       <aside className={cn(
         'w-64 border-r flex-shrink-0 flex flex-col bg-background',
         'md:flex',
@@ -177,12 +199,20 @@ export default function ChatPage() {
           <div ref={bottomRef} />
         </div>
 
+        {/* Send error */}
+        {sendError && (
+          <div className="px-4 py-2 bg-red-50 dark:bg-red-950 border-t border-red-200 dark:border-red-800 flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            {sendError}
+          </div>
+        )}
+
         {/* Input */}
         <form onSubmit={handleSend} className="p-3 border-t flex gap-2 shrink-0">
           <input
             ref={inputRef}
             value={text}
-            onChange={e => setText(e.target.value)}
+            onChange={e => { setText(e.target.value); setSendError(null) }}
             placeholder="Написать сообщение..."
             className="flex-1 px-4 py-2.5 border rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
             maxLength={2000}

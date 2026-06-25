@@ -11,19 +11,26 @@ export async function GET(req: NextRequest) {
 
   const room = req.nextUrl.searchParams.get('room') ?? 'general'
 
-  // Start from the latest existing message
-  const latest = await ChatMessage.findOne({ roomId: room })
-    .sort({ createdAt: -1 })
-    .select('_id')
-    .lean()
+  // On reconnect, browser sends Last-Event-ID so we resume without gaps
+  const lastEventIdHeader = req.headers.get('last-event-id')
 
-  let lastId: mongoose.Types.ObjectId | null = latest ? (latest as { _id: mongoose.Types.ObjectId })._id : null
+  let lastId: mongoose.Types.ObjectId | null = null
+
+  if (lastEventIdHeader && mongoose.Types.ObjectId.isValid(lastEventIdHeader)) {
+    lastId = new mongoose.Types.ObjectId(lastEventIdHeader)
+  } else {
+    const latest = await ChatMessage.findOne({ roomId: room })
+      .sort({ createdAt: -1 })
+      .select('_id')
+      .lean()
+    lastId = latest ? (latest as { _id: mongoose.Types.ObjectId })._id : null
+  }
 
   const encoder = new TextEncoder()
 
   const stream = new ReadableStream({
     start(controller) {
-      const interval = setInterval(async () => {
+      const pollInterval = setInterval(async () => {
         try {
           const filter: Record<string, unknown> = { roomId: room }
           if (lastId) filter._id = { $gt: lastId }
@@ -34,16 +41,26 @@ export async function GET(req: NextRequest) {
             .lean()
 
           for (const msg of messages) {
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify(msg)}\n\n`))
+            const id = (msg._id as mongoose.Types.ObjectId).toString()
+            // id: field lets browser track Last-Event-ID for reconnection
+            controller.enqueue(encoder.encode(`id: ${id}\ndata: ${JSON.stringify(msg)}\n\n`))
             lastId = msg._id as mongoose.Types.ObjectId
           }
-        } catch {
-          // skip failed ticks
-        }
+        } catch { /* skip failed ticks */ }
       }, 1500)
 
+      // Heartbeat every 20s — prevents nginx/proxy from closing idle connections
+      const heartbeatInterval = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(': ping\n\n'))
+        } catch {
+          clearInterval(heartbeatInterval)
+        }
+      }, 20000)
+
       req.signal.addEventListener('abort', () => {
-        clearInterval(interval)
+        clearInterval(pollInterval)
+        clearInterval(heartbeatInterval)
         try { controller.close() } catch { /* already closed */ }
       })
     },

@@ -71,8 +71,9 @@ export async function POST(request: NextRequest) {
     paymentMethod: 'cash' | 'card' | 'qr' | 'transfer'
     total: number
     clientEmail?: string
+    dbName?: string
   }
-  const { orderId, orderNumber, items, paymentMethod, total, clientEmail } = body
+  const { orderId, orderNumber, items, paymentMethod, total, clientEmail, dbName } = body
 
   if (!paymentMethod || total == null) {
     return NextResponse.json({ success: false, error: 'paymentMethod and total are required' }, { status: 400 })
@@ -87,8 +88,9 @@ export async function POST(request: NextRequest) {
     status: 'pending',
   })
 
-  // Load company + fiscal/cashier settings
-  const company = await Company.findOne().lean() as Record<string, unknown> | null
+  // Load company + fiscal/cashier settings (filter by dbName for multi-tenancy)
+  const companyFilter = dbName ? { dbName } : {}
+  const company = await Company.findOne(companyFilter).lean() as Record<string, unknown> | null
   const cashierSettings = company?.cashierSettings as Record<string, unknown> | undefined
   const fiscalSettings = company?.fiscalSettings as Record<string, unknown> | undefined
   const atolCfg = cashierSettings?.atol as AtolConfig | undefined
