@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       phone: data.phone,
       locationId: data.locationId,
       salary: data.salary,
+      companyId: auth.session!.user.companyId || undefined,
       isEmailVerified: false,
       emailVerificationToken: tokenHash,
       emailVerificationExpires: new Date(Date.now() + 48 * 60 * 60 * 1000),

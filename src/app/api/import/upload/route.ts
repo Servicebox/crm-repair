@@ -92,9 +92,16 @@ export async function POST(req: NextRequest) {
   const jobDir = path.join(UPLOAD_BASE, companyId, new mongoose.Types.ObjectId().toString())
   fs.mkdirSync(jobDir, { recursive: true })
 
-  // Convert Next.js Web ReadableStream → Node.js Readable for formidable
+  // Convert Next.js Web ReadableStream → Node.js Readable for formidable.
+  // formidable expects an http.IncomingMessage; we attach headers so it can
+  // read content-type (multipart boundary) and content-length.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const nodeStream = Readable.fromWeb(req.body as any)
+  const fakeIncoming = Object.assign(nodeStream, {
+    headers: Object.fromEntries(req.headers.entries()),
+    method: req.method,
+    url: req.url,
+  })
 
   const form = formidable({
     uploadDir: jobDir,
@@ -108,7 +115,7 @@ export async function POST(req: NextRequest) {
 
   let uploadedFile: formidable.File
   try {
-    const [, files] = await form.parse(nodeStream as unknown as import('http').IncomingMessage)
+    const [, files] = await form.parse(fakeIncoming as unknown as import('http').IncomingMessage)
     const fileField = files.file
     if (!fileField || !fileField[0]) {
       return NextResponse.json({ success: false, error: 'Файл не найден в запросе' }, { status: 400 })
