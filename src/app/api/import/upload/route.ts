@@ -10,8 +10,7 @@ import { Readable } from 'stream'
 import type { ImportFileType } from '@/models/ImportJob'
 
 export const dynamic = 'force-dynamic'
-// Increase Next.js body size limit for this route
-export const config = { maxDuration: 60 }
+export const maxDuration = 60
 
 const UPLOAD_BASE = process.env.UPLOAD_DIR ?? '/tmp/crm-imports'
 const MAX_FILE_SIZE = 100 * 1024 * 1024  // 100 MB
