@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
   }
 
+  // DEBUG: log session state to diagnose companyId issues
+  console.log('[import/upload] session.user.id:', session.user.id, 'role:', session.user.role, 'companyId:', JSON.stringify(session.user.companyId), 'dbName:', session.user.dbName)
+
   // session.user.companyId is populated by the session callback via a fresh DB lookup.
   // If that lookup failed (cold start, transient error), fall back to a direct DB query here.
   await connectToDatabase()
@@ -69,13 +72,15 @@ export async function POST(req: NextRequest) {
       const userDoc = await User.findById(session.user.id)
         .select('companyId')
         .lean() as { companyId?: mongoose.Types.ObjectId } | null
+      console.log('[import/upload] DB fallback userDoc.companyId:', JSON.stringify(userDoc))
       companyId = userDoc?.companyId?.toString() ?? ''
-    } catch {
-      // leave empty, will hit the check below
+    } catch (err) {
+      console.error('[import/upload] DB fallback failed:', err)
     }
   }
   if (!companyId) {
-    return NextResponse.json({ success: false, error: 'Нет привязки к организации' }, { status: 403 })
+    console.error('[import/upload] companyId still empty after fallback — returning 403')
+    return NextResponse.json({ success: false, error: 'Нет привязки к организации', debug: { userId: session.user.id, role: session.user.role } }, { status: 403 })
   }
 
   // Rate limiting: max 5 active imports per org in the last hour
