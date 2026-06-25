@@ -32,6 +32,25 @@ function detectEncoding(filePath: string): string {
   return 'UTF-8'
 }
 
+/**
+ * Detect CSV field delimiter by sampling the first line.
+ * 1С exports and many Russian tools use ';' instead of ','.
+ */
+function detectDelimiter(filePath: string): string {
+  try {
+    const buf = Buffer.alloc(2048)
+    const fd = fs.openSync(filePath, 'r')
+    const read = fs.readSync(fd, buf, 0, 2048, 0)
+    fs.closeSync(fd)
+    const firstLine = buf.slice(0, read).toString('latin1').split('\n')[0] ?? ''
+    const semicolons = (firstLine.match(/;/g) ?? []).length
+    const commas = (firstLine.match(/,/g) ?? []).length
+    return semicolons > commas ? ';' : ','
+  } catch {
+    return ','
+  }
+}
+
 function createCsvStream(filePath: string, encoding: string): NodeJS.ReadableStream {
   const raw = fs.createReadStream(filePath)
   if (encoding.toLowerCase() === 'utf-8' || encoding.toLowerCase() === 'utf8') {
@@ -51,9 +70,11 @@ export async function analyseCsv(filePath: string): Promise<CsvAnalysis> {
   let headers: string[] = []
   let total_rows = 0
 
+  const separator = detectDelimiter(filePath)
+
   await new Promise<void>((resolve, reject) => {
     const stream = createCsvStream(filePath, encoding)
-    const parser = csvParser({ strict: false })
+    const parser = csvParser({ separator, strict: false })
 
     stream.pipe(parser)
       .on('headers', (h: string[]) => { headers = h })
@@ -81,9 +102,11 @@ export async function streamCsv(
   let processed = 0
   let failed = 0
 
+  const separator = detectDelimiter(filePath)
+
   await new Promise<void>((resolve, reject) => {
     const rawStream = createCsvStream(filePath, encoding)
-    const parser = csvParser({ strict: false })
+    const parser = csvParser({ separator, strict: false })
 
     // We need a reference to pause/resume for backpressure
     const controlled = rawStream.pipe(parser)

@@ -119,7 +119,11 @@ export async function POST(
     })
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
-    await ImportJob.updateOne({ _id: job._id }, { $set: { status: 'failed' } })
+    console.error('[analyze] job', params.id, 'failed:', message)
+    await ImportJob.updateOne({ _id: job._id }, {
+      $set: { status: 'failed' },
+      $push: { import_errors: { $each: [{ row_number: 0, source_data: null, error_message: message, error_code: 'FATAL' }], $slice: -500 } },
+    })
     return NextResponse.json({ success: false, error: message }, { status: 500 })
   }
 }
