@@ -9,8 +9,9 @@ import {
   Check, Pencil, X, Plus, Minus, QrCode, Tag,
   Phone, Mail, User, Smartphone, Wrench, DollarSign,
   Calendar, Shield, MessageSquare, Camera, FileText,
-  Clock, ChevronDown, Save, Receipt, AlertCircle,
+  Clock, ChevronDown, Save, Receipt, AlertCircle, TrendingUp,
 } from 'lucide-react'
+import { useSession } from 'next-auth/react'
 import { StatusBadge, PriorityBadge } from '@/components/orders/OrderBadge'
 import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/constants/orders'
@@ -101,10 +102,29 @@ function EditableTextarea({ label, value, onSave }: { label: string; value: stri
   )
 }
 
+type SalaryType = 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
+interface MasterSalary {
+  type: SalaryType
+  value: number
+  hourlyRate?: number
+  guaranteed?: number
+}
+
+function calcMasterEarnings(salary: MasterSalary, revenue: number, profit: number, totalMinutes: number): number | null {
+  switch (salary.type) {
+    case 'percent_revenue': return revenue * salary.value / 100
+    case 'percent_profit': return Math.max(0, profit * salary.value / 100)
+    case 'rate_per_order': return salary.value
+    case 'hourly': return (totalMinutes / 60) * (salary.hourlyRate ?? salary.value)
+    case 'fixed': return null
+  }
+}
+
 export default function OrderDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
+  const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState<'device' | 'diagnostics' | 'work' | 'payment' | 'approve'>('device')
   const [newStatus, setNewStatus] = useState('')
   const [statusComment, setStatusComment] = useState('')
@@ -127,6 +147,19 @@ export default function OrderDetailPage() {
       const json = await res.json()
       return json.data
     },
+  })
+
+  const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
+
+  const { data: employees } = useQuery<Array<{ _id: string; name: string; salary?: MasterSalary }>>({
+    queryKey: ['employees'],
+    queryFn: async () => {
+      const res = await fetch('/api/employees')
+      const json = await res.json()
+      return json.data ?? []
+    },
+    enabled: isPrivileged,
+    staleTime: 5 * 60_000,
   })
 
   const updateMutation = useMutation({
@@ -925,6 +958,66 @@ export default function OrderDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Master earnings — visible only to owner/admin */}
+          {isPrivileged && order.masterId && (() => {
+            const master = (employees ?? []).find(e => String(e._id) === String(order.masterId))
+            if (!master?.salary) return null
+
+            const revenue = order.finalCost ?? 0
+            const partsCost = (order.parts ?? []).reduce((s: number, p: { cost: number; quantity: number }) => s + p.cost * p.quantity, 0)
+            const worksCost = (order.works ?? []).reduce((s: number, w: { cost?: number }) => s + (w.cost ?? 0), 0)
+            const profit = Math.max(0, revenue - partsCost - worksCost)
+            const totalMinutes = (order.works ?? []).reduce((s: number, w: { duration?: number }) => s + (w.duration ?? 0), 0)
+            const earnings = calcMasterEarnings(master.salary, revenue, profit, totalMinutes)
+
+            const salaryLabel: Record<string, string> = {
+              percent_revenue: `${master.salary.value}% от выручки`,
+              percent_profit: `${master.salary.value}% от прибыли`,
+              rate_per_order: 'Ставка за заказ',
+              hourly: `${master.salary.hourlyRate ?? master.salary.value} ₽/ч`,
+              fixed: 'Фиксированный оклад',
+            }
+
+            return (
+              <div className="bg-card border rounded-xl p-4">
+                <h3 className="flex items-center gap-2 font-semibold mb-3 text-sm">
+                  <TrendingUp className="w-4 h-4 text-green-500" /> Заработок мастера
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">{master.name}</span>
+                    <span className="text-xs text-muted-foreground">{salaryLabel[master.salary.type]}</span>
+                  </div>
+                  {master.salary.type === 'percent_profit' && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Прибыль по заказу</span>
+                      <span>{formatCurrency(profit)}</span>
+                    </div>
+                  )}
+                  {master.salary.type === 'hourly' && totalMinutes > 0 && (
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Время работ</span>
+                      <span>{Math.round(totalMinutes / 6) / 10} ч</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2 flex justify-between items-center">
+                    <span className="font-medium">Заработает с заказа</span>
+                    {earnings !== null ? (
+                      <span className="font-bold text-green-600 text-base">{formatCurrency(earnings)}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Зависит от оклада</span>
+                    )}
+                  </div>
+                  {earnings !== null && master.salary.guaranteed && earnings < master.salary.guaranteed && (
+                    <div className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5">
+                      Ниже гарантированного минимума {formatCurrency(master.salary.guaranteed)} — минимум будет начислен
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
 
           {/* Executors */}
           <div className="bg-card border rounded-xl p-4">
