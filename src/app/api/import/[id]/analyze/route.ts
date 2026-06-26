@@ -5,7 +5,7 @@ import ImportJob from '@/models/ImportJob'
 import mongoose from 'mongoose'
 import { analyseCsv } from '@/services/import/parsers/csv'
 import { analyseExcel } from '@/services/import/parsers/excel'
-import { analyseXml } from '@/services/import/parsers/xml'
+import { analyseXml, simplifyXmlHeader } from '@/services/import/parsers/xml'
 import { autoMapColumns } from '@/services/import/fuzzyMapper'
 import type { IColumnAnalysis } from '@/models/ImportJob'
 
@@ -82,8 +82,12 @@ export async function POST(
       }
     }
 
+    // For XML files, use the last segment of nested paths for fuzzy matching
+    // while keeping the full path as source_name (needed to read the correct key from rows)
+    const searchNames = ext === 'xml' ? headers.map(simplifyXmlHeader) : headers
+
     // Run fuzzy matching to generate field suggestions
-    const suggestions = autoMapColumns(headers, entity)
+    const suggestions = autoMapColumns(searchNames, entity)
 
     const detected_columns: IColumnAnalysis[] = headers.map((h, i) => {
       const suggestion = suggestions[i]?.suggestion

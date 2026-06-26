@@ -163,3 +163,13 @@ export async function streamXml(
 
   return { processed, failed }
 }
+
+/**
+ * For XML, the full dot-path is kept as the source_column (needed to read the
+ * correct key from a flattened row), but the fuzzy mapper should search on the
+ * last segment only — e.g. 'client_phone' from 'document.items.item.client_phone'.
+ */
+export function simplifyXmlHeader(fullPath: string): string {
+  const parts = fullPath.split('.')
+  return parts[parts.length - 1]
+}
