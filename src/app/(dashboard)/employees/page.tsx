@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera } from 'lucide-react'
+import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera, Eye, EyeOff, Copy, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 
@@ -76,6 +76,42 @@ export default function EmployeesPage() {
   const [payrollMonth, setPayrollMonth] = useState<string>(currentMonth)
   const [payoutForm, setPayoutForm] = useState<{ userId: string; recordId: string; amount: number; notes: string } | null>(null)
 
+  // Password setup state
+  const [accessMode, setAccessMode] = useState<'email' | 'manual'>('email')
+  const [manualPw, setManualPw] = useState('')
+  const [manualPwConfirm, setManualPwConfirm] = useState('')
+  const [showManualPw, setShowManualPw] = useState(false)
+  const [createdCredentials, setCreatedCredentials] = useState<{ name: string; email: string; password: string } | null>(null)
+
+  function generatePassword() {
+    const chars = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789!@#'
+    const digits = '23456789'
+    let pw = ''
+    // ensure at least 2 digits and 2 uppercase
+    pw += digits[Math.floor(Math.random() * digits.length)]
+    pw += digits[Math.floor(Math.random() * digits.length)]
+    pw += 'ABCDEFGHJKMNPQRSTUVWXYZ'[Math.floor(Math.random() * 22)]
+    for (let i = pw.length; i < 12; i++) pw += chars[Math.floor(Math.random() * chars.length)]
+    // shuffle
+    const arr = pw.split('').sort(() => Math.random() - 0.5)
+    setManualPw(arr.join(''))
+    setManualPwConfirm(arr.join(''))
+    setShowManualPw(true)
+  }
+
+  function pwStrength(pw: string): { score: number; label: string; color: string } {
+    let s = 0
+    if (pw.length >= 8) s++
+    if (pw.length >= 12) s++
+    if (/[A-Z]/.test(pw)) s++
+    if (/[0-9]/.test(pw)) s++
+    if (/[^A-Za-z0-9]/.test(pw)) s++
+    if (s <= 1) return { score: s, label: 'Слабый', color: 'bg-red-500' }
+    if (s <= 2) return { score: s, label: 'Средний', color: 'bg-amber-500' }
+    if (s <= 3) return { score: s, label: 'Хороший', color: 'bg-yellow-400' }
+    return { score: s, label: 'Надёжный', color: 'bg-green-500' }
+  }
+
   const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
 
   const { data: employees, isLoading } = useQuery({
@@ -118,6 +154,10 @@ export default function EmployeesPage() {
     setEditItem(null)
     setForm(EMPTY_FORM)
     setError('')
+    setAccessMode('email')
+    setManualPw('')
+    setManualPwConfirm('')
+    setShowManualPw(false)
     setShowForm(true)
   }
 
@@ -130,14 +170,28 @@ export default function EmployeesPage() {
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
+
+    if (!editItem && accessMode === 'manual') {
+      if (manualPw.length < 8) { setError('Минимум 8 символов'); return }
+      if (!/[A-Za-z]/.test(manualPw) || !/[0-9]/.test(manualPw)) { setError('Пароль должен содержать буквы и цифры'); return }
+      if (manualPw !== manualPwConfirm) { setError('Пароли не совпадают'); return }
+    }
+
     setSaving(true)
     setError('')
     const url = editItem ? `/api/employees/${editItem._id}` : '/api/employees'
     const method = editItem ? 'PATCH' : 'POST'
+
+    const payload = editItem
+      ? form
+      : accessMode === 'manual'
+        ? { ...form, password: manualPw }
+        : form
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     })
     const json = await res.json()
     if (!res.ok) {
@@ -145,9 +199,11 @@ export default function EmployeesPage() {
     } else {
       queryClient.invalidateQueries({ queryKey: ['employees'] })
       setShowForm(false)
-      if (!editItem && json.data?.emailSent === false) {
+      if (!editItem && json.data?.manualPassword) {
+        setCreatedCredentials({ name: form.name, email: form.email, password: manualPw })
+      } else if (!editItem && json.data?.emailSent === false) {
         setTimeout(() => {
-          alert('Сотрудник создан, но письмо-приглашение не отправлено. Проверьте настройки SMTP в логах сервера.')
+          alert('Сотрудник создан, но письмо-приглашение не отправлено. Проверьте настройки SMTP.')
         }, 150)
       }
     }
@@ -500,6 +556,60 @@ export default function EmployeesPage() {
         </div>
       )}
 
+      {/* Credentials modal (manual password) */}
+      {createdCredentials && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="p-5 text-center border-b">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <KeyRound className="w-6 h-6 text-green-600" />
+              </div>
+              <h2 className="font-bold text-lg">Сотрудник создан!</h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                Передайте данные для входа сотруднику лично. Пароль показывается только один раз.
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <div className="bg-muted/50 rounded-xl p-4 space-y-2 text-sm">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Сотрудник:</span>
+                  <span className="font-medium">{createdCredentials.name}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Логин (email):</span>
+                  <span className="font-mono text-xs">{createdCredentials.email}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Пароль:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-blue-600">{createdCredentials.password}</span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(createdCredentials.password)}
+                      className="text-muted-foreground hover:text-foreground transition"
+                      title="Скопировать"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-800">
+                ⚠️ Сохраните пароль — после закрытия этого окна он не будет показан снова.
+              </div>
+            </div>
+            <div className="p-5 pt-0">
+              <button
+                onClick={() => setCreatedCredentials(null)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-semibold transition"
+              >
+                Понятно, закрыть
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Employee form modal */}
       {showForm && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -574,13 +684,93 @@ export default function EmployeesPage() {
                 </div>
               </div>
               {!editItem && (
-                <p className="text-xs text-muted-foreground">Сотруднику будет отправлено письмо для подтверждения email и установки пароля.</p>
+                <div className="border rounded-xl overflow-hidden">
+                  <div className="text-sm font-medium px-3 pt-3 pb-2">Способ доступа</div>
+                  <div className="flex border-b">
+                    {[
+                      { value: 'email', label: '📧 Письмо-приглашение' },
+                      { value: 'manual', label: '🔑 Задать пароль вручную' },
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setAccessMode(opt.value as 'email' | 'manual')}
+                        className={`flex-1 py-2 text-xs font-medium transition ${accessMode === opt.value ? 'bg-blue-600 text-white' : 'hover:bg-accent text-muted-foreground'}`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="p-3">
+                    {accessMode === 'email' ? (
+                      <p className="text-xs text-muted-foreground">
+                        Сотруднику придёт письмо со ссылкой. Он сам установит пароль при первом входе.
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Вы задаёте пароль и передаёте его сотруднику лично. Письмо-приглашение не отправляется.
+                        </p>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="text-xs font-medium">Пароль</label>
+                            <button type="button" onClick={generatePassword} className="text-xs text-blue-600 hover:underline">
+                              Сгенерировать
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type={showManualPw ? 'text' : 'password'}
+                              value={manualPw}
+                              onChange={e => setManualPw(e.target.value)}
+                              className="w-full px-3 py-2 pr-9 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                              placeholder="Минимум 8 символов"
+                              autoComplete="new-password"
+                              required={accessMode === 'manual'}
+                            />
+                            <button type="button" onClick={() => setShowManualPw(v => !v)}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                              {showManualPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                            </button>
+                          </div>
+                          {manualPw && (() => {
+                            const s = pwStrength(manualPw)
+                            return (
+                              <div className="mt-1.5">
+                                <div className="flex gap-1">
+                                  {[1,2,3,4].map(i => (
+                                    <div key={i} className={`h-1 flex-1 rounded-full transition-colors ${s.score >= i ? s.color : 'bg-slate-200'}`} />
+                                  ))}
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">{s.label}</p>
+                              </div>
+                            )
+                          })()}
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Подтвердите пароль</label>
+                          <input
+                            type={showManualPw ? 'text' : 'password'}
+                            value={manualPwConfirm}
+                            onChange={e => setManualPwConfirm(e.target.value)}
+                            className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 font-mono ${manualPwConfirm && manualPw !== manualPwConfirm ? 'border-red-300' : ''}`}
+                            placeholder="Повторите пароль"
+                            autoComplete="new-password"
+                          />
+                          {manualPwConfirm && manualPw !== manualPwConfirm && (
+                            <p className="text-xs text-red-500 mt-0.5">Пароли не совпадают</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               )}
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
                 <button type="submit" disabled={saving} className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editItem ? 'Сохранить' : 'Пригласить'}
+                  {editItem ? 'Сохранить' : accessMode === 'email' ? 'Пригласить' : 'Создать'}
                 </button>
               </div>
             </form>

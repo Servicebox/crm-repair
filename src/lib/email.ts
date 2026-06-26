@@ -44,14 +44,24 @@ export async function sendVerificationEmail(email: string, token: string, name: 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,
     to: email,
-    subject: 'Подтвердите email — ServiceBox CRM',
+    subject: 'Вас добавили в ServiceBox CRM — установите пароль',
     html: `
       <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
-        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Добро пожаловать, ${escapeHtml(name)}!</h1>
-        <p style="color:#64748b;margin:0 0 24px">Подтвердите ваш email-адрес, чтобы завершить регистрацию в ServiceBox CRM.</p>
-        <a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:15px">Подтвердить email</a>
-        <p style="color:#94a3b8;font-size:13px;margin:24px 0 0">Если вы не регистрировались, просто проигнорируйте это письмо.</p>
-        <p style="color:#94a3b8;font-size:12px;margin:8px 0 0">Ссылка действительна 24 часа.</p>
+        <div style="margin-bottom:24px">
+          <div style="display:inline-block;background:#eff6ff;border-radius:8px;padding:10px 14px;margin-bottom:16px">
+            <span style="font-size:24px">🔐</span>
+          </div>
+          <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">Вас добавили в команду!</h1>
+          <p style="color:#64748b;margin:0">Здравствуйте, ${escapeHtml(name)}!</p>
+        </div>
+        <p style="color:#475569;margin:0 0 8px">Вы добавлены в ServiceBox CRM. Чтобы начать работу, нажмите кнопку ниже и придумайте пароль для входа.</p>
+        <p style="color:#94a3b8;font-size:13px;margin:0 0 24px">Ссылка действительна <strong>48 часов</strong>.</p>
+        <a href="${url}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px">Установить пароль</a>
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid #f1f5f9">
+          <p style="color:#94a3b8;font-size:13px;margin:0 0 6px">Данные для входа:</p>
+          <p style="color:#475569;font-size:13px;margin:0">Логин: <strong>${escapeHtml(email)}</strong></p>
+          <p style="color:#94a3b8;font-size:12px;margin:8px 0 0">Если вас не добавляли — просто проигнорируйте это письмо.</p>
+        </div>
       </div>
     `,
   })

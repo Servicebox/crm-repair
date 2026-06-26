@@ -4,20 +4,29 @@ import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 import { sendVerificationEmail } from '@/lib/email'
 import crypto from 'crypto'
 
+const SalarySchema = z.object({
+  type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
+  value: z.number(),
+  hourlyRate: z.number().optional(),
+  overtimeMultiplier: z.number().optional(),
+  salesPercent: z.number().optional(),
+  guaranteed: z.number().optional(),
+})
+
 const CreateEmployeeSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   role: z.enum(['admin', 'manager', 'master']),
   phone: z.string().optional(),
   locationId: z.string().optional(),
-  salary: z.object({
-    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
-    value: z.number(),
-    hourlyRate: z.number().optional(),
-    overtimeMultiplier: z.number().optional(),
-    salesPercent: z.number().optional(),
-    guaranteed: z.number().optional(),
-  }).optional(),
+  salary: SalarySchema.optional(),
+  // Manual password option (owner sets it; no email invite sent)
+  password: z
+    .string()
+    .min(8, 'Минимум 8 символов')
+    .regex(/[A-Za-z]/, 'Пароль должен содержать буквы')
+    .regex(/[0-9]/, 'Пароль должен содержать цифры')
+    .optional(),
 })
 
 export async function GET() {
@@ -41,33 +50,49 @@ export async function POST(req: NextRequest) {
     const existing = await User.findOne({ email: data.email })
     if (existing) return err('Email уже зарегистрирован', 409)
 
-    const tempPassword = crypto.randomBytes(8).toString('hex')
-    const token = crypto.randomBytes(32).toString('hex')
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    const manualPassword = !!data.password
+
+    let token: string | undefined
+    let tokenHash: string | undefined
+
+    if (!manualPassword) {
+      token = crypto.randomBytes(32).toString('hex')
+      tokenHash = crypto.createHash('sha256').update(token).digest('hex')
+    }
 
     const user = await User.create({
       name: data.name,
       email: data.email,
-      password: tempPassword,
+      // bcrypt hashing happens in pre-save hook
+      password: manualPassword ? data.password : crypto.randomBytes(16).toString('hex'),
       role: data.role,
       phone: data.phone,
       locationId: data.locationId,
       salary: data.salary,
       companyId: auth.session!.user.companyId || undefined,
-      isEmailVerified: false,
+      isEmailVerified: manualPassword,
       emailVerificationToken: tokenHash,
-      emailVerificationExpires: new Date(Date.now() + 48 * 60 * 60 * 1000),
+      emailVerificationExpires: tokenHash ? new Date(Date.now() + 48 * 60 * 60 * 1000) : undefined,
     })
 
     let emailSent = false
-    try {
-      await sendVerificationEmail(data.email, token, data.name)
-      emailSent = true
-    } catch (emailError) {
-      console.error('[employees] Failed to send verification email to', data.email, ':', emailError)
+    if (!manualPassword && token) {
+      try {
+        await sendVerificationEmail(data.email, token, data.name)
+        emailSent = true
+      } catch (emailError) {
+        console.error('[employees] Failed to send invite email to', data.email, ':', emailError)
+      }
     }
 
-    return ok({ id: user._id, name: user.name, email: user.email, role: user.role, emailSent }, 201)
+    return ok({
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      manualPassword,
+      emailSent,
+    }, 201)
   } catch (error) {
     if (error instanceof z.ZodError) return err(error.errors[0].message)
     return err('Ошибка создания сотрудника', 500)
