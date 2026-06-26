@@ -109,13 +109,15 @@ export default function ShiftsPage() {
 
   const openShiftByUserId = new Map<string, Shift>()
   for (const s of openShifts) {
-    const uid = typeof s.userId === 'string' ? s.userId : s.userId._id
+    const uid = typeof s.userId === 'string' ? s.userId : s.userId?._id
+    if (!uid) continue
     openShiftByUserId.set(uid, s)
   }
 
   const shiftsByUserId = new Map<string, Shift[]>()
   for (const s of closedShifts) {
-    const uid = typeof s.userId === 'string' ? s.userId : s.userId._id
+    const uid = typeof s.userId === 'string' ? s.userId : s.userId?._id
+    if (!uid) continue
     if (!shiftsByUserId.has(uid)) shiftsByUserId.set(uid, [])
     shiftsByUserId.get(uid)!.push(s)
   }
