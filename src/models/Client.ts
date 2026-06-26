@@ -1,5 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose'
 
+export type ClientStatus = 'excellent' | 'good' | 'problematic' | 'blacklist'
+
 export interface IClient extends Document {
   name: string
   phone?: string
@@ -11,6 +13,7 @@ export interface IClient extends Document {
   totalRevenue: number
   lastOrderDate?: Date
   tags: string[]
+  status?: ClientStatus
   createdAt: Date
   updatedAt: Date
 }
@@ -27,6 +30,10 @@ const ClientSchema = new Schema<IClient>(
     totalRevenue: { type: Number, default: 0 },
     lastOrderDate: Date,
     tags: { type: [String], default: [] },
+    status: {
+      type: String,
+      enum: ['excellent', 'good', 'problematic', 'blacklist'],
+    },
   },
   { timestamps: true }
 )

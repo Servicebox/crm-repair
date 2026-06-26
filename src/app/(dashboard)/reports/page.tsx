@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { formatCurrency } from '@/lib/utils'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts'
 
 export default function ReportsPage() {
   const [period, setPeriod] = useState('month')
@@ -15,6 +15,9 @@ export default function ReportsPage() {
       return json.data
     },
   })
+
+  const grossMarginColor = (stats?.grossMargin ?? 0) >= 50 ? 'text-green-600' :
+    (stats?.grossMargin ?? 0) >= 30 ? 'text-amber-600' : 'text-red-600'
 
   return (
     <div className="p-4 md:p-6">
@@ -33,13 +36,13 @@ export default function ReportsPage() {
         <div className="bg-card border rounded-xl p-4">
           <h3 className="font-semibold mb-4">Выручка по дням</h3>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={stats?.revenueByDay ?? []}>
+            <AreaChart data={stats?.revenueByDay ?? []}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="_id" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `${Math.round(v / 1000)}к`} />
+              <YAxis tick={{ fontSize: 11 }} tickFormatter={(v: number) => `${Math.round(v / 1000)}к`} />
               <Tooltip formatter={(v: number) => formatCurrency(v)} />
-              <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
-            </LineChart>
+              <Area type="monotone" dataKey="revenue" stroke="#3b82f6" fill="#eff6ff" strokeWidth={2} name="Выручка" />
+            </AreaChart>
           </ResponsiveContainer>
         </div>
 
@@ -70,33 +73,41 @@ export default function ReportsPage() {
         </div>
 
         <div className="bg-card border rounded-xl p-4">
-          <h3 className="font-semibold mb-4">Сводка</h3>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Всего заказов</span>
-              <span className="font-semibold">{stats?.orders?.total ?? 0}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Выдано</span>
-              <span className="font-semibold">{stats?.orders?.issued ?? 0}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Выручка</span>
-              <span className="font-semibold text-green-600">{formatCurrency(stats?.revenue ?? 0)}</span>
-            </div>
-            <div className="flex justify-between py-2 border-b">
-              <span className="text-muted-foreground">Новых клиентов</span>
-              <span className="font-semibold">{stats?.newClients ?? 0}</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-muted-foreground">Средний чек</span>
-              <span className="font-semibold">
-                {stats?.orders?.issued ? formatCurrency(Math.round((stats?.revenue ?? 0) / stats.orders.issued)) : '—'}
-              </span>
-            </div>
+          <h3 className="font-semibold mb-4">Финансовая сводка</h3>
+          <div className="space-y-0">
+            {[
+              { label: 'Всего заказов', value: stats?.orders?.total ?? 0, format: 'num' },
+              { label: 'Выдано', value: stats?.orders?.issued ?? 0, format: 'num' },
+              { label: 'Выручка (заказы)', value: stats?.orderRevenue ?? 0, format: 'currency', color: 'text-green-600' },
+              { label: 'Себестоимость', value: stats?.orderCogs ?? 0, format: 'currency', color: 'text-red-500' },
+              { label: 'Валовая прибыль', value: stats?.grossProfit ?? 0, format: 'currency', color: 'text-blue-600' },
+              { label: 'Маржа', value: stats?.grossMargin ?? 0, format: 'pct', color: grossMarginColor },
+              { label: 'Средний чек', value: stats?.avgCheck ?? 0, format: 'currency' },
+              { label: 'Конверсия', value: stats?.conversionRate ?? 0, format: 'pct' },
+              { label: 'Новых клиентов', value: stats?.newClients ?? 0, format: 'num' },
+            ].map(row => (
+              <div key={row.label} className="flex justify-between py-2.5 border-b last:border-0 text-sm">
+                <span className="text-muted-foreground">{row.label}</span>
+                <span className={`font-semibold ${row.color ?? ''}`}>
+                  {row.format === 'currency' ? formatCurrency(row.value as number) :
+                    row.format === 'pct' ? `${row.value}%` :
+                    row.value}
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
+      {/* Avg repair time note */}
+      {stats?.avgRepairHours && (
+        <div className="mt-4 bg-card border rounded-xl p-4">
+          <div className="text-sm text-muted-foreground">
+            Среднее время ремонта (приёмка → выдача):
+            <span className="ml-2 font-semibold text-foreground">{stats.avgRepairHours} ч</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

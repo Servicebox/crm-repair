@@ -11,6 +11,7 @@ const UpdateClientSchema = z.object({
   notes: z.string().optional(),
   discount: z.number().min(0).max(100).optional(),
   tags: z.array(z.string()).optional(),
+  status: z.enum(['excellent', 'good', 'problematic', 'blacklist']).nullable().optional(),
 })
 
 function isValidObjectId(id: string) {
@@ -24,12 +25,18 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 
   if (!isValidObjectId(params.id)) return err('Неверный ID', 400)
 
+  const oid = new mongoose.Types.ObjectId(params.id)
   const [client, orders] = await Promise.all([
     Client.findById(params.id).lean(),
-    Order.find({ clientId: params.id }).sort({ createdAt: -1 }).lean(),
+    Order.find({ clientId: oid }).sort({ createdAt: -1 }).lean(),
   ])
   if (!client) return err('Клиент не найден', 404)
-  return ok({ client, orders })
+
+  const pendingOrders = (orders as unknown as Array<{ status: string; finalCost: number }>)
+    .filter(o => o.status === 'ready')
+  const pendingDebt = pendingOrders.reduce((s, o) => s + (o.finalCost ?? 0), 0)
+
+  return ok({ client, orders, pendingDebt, pendingOrdersCount: pendingOrders.length })
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

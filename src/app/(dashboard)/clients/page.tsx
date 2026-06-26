@@ -1,9 +1,11 @@
 'use client'
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search, User, Phone, Mail, ShoppingBag, Loader2, X } from 'lucide-react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { Plus, Search, User, Phone, Mail, Loader2, X, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
 import { formatDate, formatCurrency } from '@/lib/utils'
+
+type ClientStatus = 'excellent' | 'good' | 'problematic' | 'blacklist'
 
 interface Client {
   _id: string
@@ -16,21 +18,48 @@ interface Client {
   lastOrderDate?: string
   tags: string[]
   discount: number
+  status?: ClientStatus
+  pendingDebt: number
+  pendingOrdersCount: number
   createdAt: string
 }
+
+const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  excellent: 'Отличный',
+  good: 'Хороший',
+  problematic: 'Проблемный',
+  blacklist: 'Чёрный список',
+}
+
+const CLIENT_STATUS_COLORS: Record<ClientStatus, string> = {
+  excellent: 'bg-emerald-100 text-emerald-700',
+  good: 'bg-blue-100 text-blue-700',
+  problematic: 'bg-amber-100 text-amber-700',
+  blacklist: 'bg-red-100 text-red-700',
+}
+
+const STATUS_FILTERS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'Все' },
+  { value: 'excellent', label: 'Отличные' },
+  { value: 'good', label: 'Хорошие' },
+  { value: 'problematic', label: 'Проблемные' },
+  { value: 'blacklist', label: 'Чёрный список' },
+]
 
 export default function ClientsPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', email: '', source: '', notes: '' })
   const [creating, setCreating] = useState(false)
 
   const { data, isLoading } = useQuery({
-    queryKey: ['clients', search],
+    queryKey: ['clients', search, statusFilter],
     queryFn: async () => {
       const params = new URLSearchParams()
       if (search) params.set('search', search)
+      if (statusFilter) params.set('status', statusFilter)
       const res = await fetch(`/api/clients?${params}`)
       const json = await res.json()
       return json.data
@@ -69,14 +98,32 @@ export default function ClientsPage() {
         </button>
       </div>
 
-      <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Поиск по имени, телефону, email..."
-          className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-        />
+      {/* Search + filter */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-5">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск по имени, телефону, email..."
+            className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="flex gap-1.5 flex-wrap">
+          {STATUS_FILTERS.map(f => (
+            <button
+              key={f.value}
+              onClick={() => setStatusFilter(f.value)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition border ${
+                statusFilter === f.value
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'border-transparent bg-accent hover:bg-accent/80 text-foreground'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -90,9 +137,9 @@ export default function ClientsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {clients.map(client => (
             <Link key={client._id} href={`/clients/${client._id}`}>
-              <div className="bg-card border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer">
+              <div className={`bg-card border rounded-xl p-4 hover:shadow-md transition-shadow cursor-pointer ${client.status === 'blacklist' ? 'border-red-200' : ''}`}>
                 <div className="flex items-start gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-blue-600">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${client.status === 'blacklist' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>
                     {client.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -110,12 +157,30 @@ export default function ClientsPage() {
                       </div>
                     )}
                   </div>
-                  {client.discount > 0 && (
-                    <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
-                      -{client.discount}%
-                    </span>
-                  )}
+                  <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                    {client.status && (
+                      <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${CLIENT_STATUS_COLORS[client.status]}`}>
+                        {CLIENT_STATUS_LABELS[client.status]}
+                      </span>
+                    )}
+                    {client.discount > 0 && (
+                      <span className="text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded-full">
+                        -{client.discount}%
+                      </span>
+                    )}
+                  </div>
                 </div>
+
+                {client.pendingDebt > 0 && (
+                  <div className="flex items-center gap-1.5 mb-3 px-2.5 py-1.5 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                    <span className="text-xs text-amber-700 font-medium">
+                      Долг: {formatCurrency(client.pendingDebt)}
+                      {client.pendingOrdersCount > 1 && ` (${client.pendingOrdersCount} заказа)`}
+                    </span>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-2 text-center border-t pt-3">
                   <div>
                     <div className="font-semibold">{client.totalOrders}</div>
