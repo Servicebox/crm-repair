@@ -18,7 +18,7 @@ function transformRow(
   raw: Record<string, string>,
   mapping: IFieldMapping[]
 ): { data: Record<string, unknown>; errors: string[] } {
-  const data: Record<string, unknown> = {}
+  const data: Record<string, unknown> = Object.create(null)
   const errors: string[] = []
 
   for (const field of mapping) {
@@ -275,7 +275,7 @@ export async function runImport(jobId: string, companyId: string, dbName: string
       },
     })
 
-    // Clean up the uploaded file — data is now in the database
+    // Clean up the uploaded file — import failed, file is no longer needed
     try {
       const fileDir = path.dirname(job.storage_path)
       fs.rmSync(fileDir, { recursive: true, force: true })

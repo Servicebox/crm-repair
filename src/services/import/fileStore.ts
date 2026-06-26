@@ -9,12 +9,13 @@ function getBase(): string {
 
 /**
  * Returns the canonical upload directory for a given import job.
- * Guaranteed to be under the upload base — no path traversal possible.
+ * Sanitizes both IDs by stripping path separators and applying path.basename
+ * to remove any remaining directory-traversal segments.
  */
 export function uploadDir(companyId: string, jobId: string): string {
-  // Strip any path separators from IDs to prevent traversal
-  const safeCompany = companyId.replace(/[/\\]/g, '_')
-  const safeJob = jobId.replace(/[/\\]/g, '_')
+  // path.basename removes any directory-traversal segments
+  const safeCompany = path.basename(companyId.replace(/[/\\]/g, '_'))
+  const safeJob = path.basename(jobId.replace(/[/\\]/g, '_'))
   return path.join(getBase(), safeCompany, safeJob)
 }
 

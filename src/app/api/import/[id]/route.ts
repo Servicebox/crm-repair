@@ -53,15 +53,9 @@ export async function DELETE(
     // Signal cancellation — the processor polls status and will abort
     await ImportJob.updateOne({ _id: job._id }, { $set: { status: 'cancelled' } })
 
-    // Clean up the uploaded file
-    if (job.storage_path) {
-      try {
-        const fileDir = path.dirname(job.storage_path)
-        fs.rmSync(fileDir, { recursive: true, force: true })
-      } catch {
-        // Non-fatal: file may already be gone
-      }
-    }
+    // Only clean up file immediately if processor is not actively reading it
+    // When importing, the processor polls for cancellation and handles cleanup itself
+    // (deleting here would race with the active stream and set status to 'failed')
 
     return NextResponse.json({ success: true, data: { cancelled: true } })
   }

@@ -19,7 +19,7 @@ const MAX_DECOMPRESSED_BYTES = 500 * 1024 * 1024  // 500 MB hard cap
  * the ZIP central directory.
  */
 export function checkZipBomb(filePath: string, fileType: string): void {
-  if (fileType !== 'xlsx' && fileType !== 'xls') return
+  if (fileType !== 'xlsx') return  // XLS (OLE2) is not a ZIP archive; only XLSX is
 
   const stat = fs.statSync(filePath)
   const compressedSize = stat.size
@@ -69,6 +69,7 @@ export function checkZipBomb(filePath: string, fileType: string): void {
  * Prevents injection of arbitrary dot-paths into MongoDB update operations.
  */
 const ALLOWED_PATH_CHARS = /^[a-zA-Z0-9_.]+$/
+const DANGEROUS_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype'])
 
 export function validateMappingPath(targetField: string): void {
   if (!ALLOWED_PATH_CHARS.test(targetField)) {
@@ -76,5 +77,12 @@ export function validateMappingPath(targetField: string): void {
       `Недопустимое имя поля для маппинга: "${targetField}". ` +
       'Разрешены только буквы, цифры, точки и подчёркивания.'
     )
+  }
+  for (const part of targetField.split('.')) {
+    if (DANGEROUS_SEGMENTS.has(part)) {
+      throw new ValidationError(
+        `Недопустимое имя сегмента маппинга: "${part}" зарезервировано.`
+      )
+    }
   }
 }

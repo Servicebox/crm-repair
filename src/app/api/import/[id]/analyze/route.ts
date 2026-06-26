@@ -128,6 +128,6 @@ export async function POST(
       $set: { status: 'failed' },
       $push: { import_errors: { $each: [{ row_number: 0, source_data: null, error_message: message, error_code: 'FATAL' }], $slice: -500 } },
     })
-    return NextResponse.json({ success: false, error: message }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Ошибка анализа файла' }, { status: 500 })
   }
 }
