@@ -3,7 +3,7 @@ import { useState, useRef } from 'react'
 import { X, Search, Package } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
-interface PartEntry {
+export interface PartEntry {
   productId?: string
   name: string
   quantity: number
@@ -14,6 +14,8 @@ interface PartEntry {
 interface PartModalProps {
   onAdd: (part: PartEntry, addMore: boolean) => void
   onClose: () => void
+  initialValues?: Partial<PartEntry>
+  editMode?: boolean
 }
 
 interface ProductResult {
@@ -25,16 +27,15 @@ interface ProductResult {
   price: number
 }
 
-export default function PartModal({ onAdd, onClose }: PartModalProps) {
-  const [tab, setTab] = useState<'warehouse' | 'manual'>('warehouse')
+export default function PartModal({ onAdd, onClose, initialValues, editMode = false }: PartModalProps) {
+  const [tab, setTab] = useState<'warehouse' | 'manual'>(editMode ? 'manual' : 'warehouse')
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
 
-  // Manual form
-  const [manualName, setManualName] = useState('')
-  const [manualQty, setManualQty] = useState('1')
-  const [manualCost, setManualCost] = useState('')
-  const [manualPrice, setManualPrice] = useState('')
+  const [manualName, setManualName] = useState(initialValues?.name ?? '')
+  const [manualQty, setManualQty] = useState(initialValues?.quantity != null ? String(initialValues.quantity) : '1')
+  const [manualCost, setManualCost] = useState(initialValues?.cost != null ? String(initialValues.cost) : '')
+  const [manualPrice, setManualPrice] = useState(initialValues?.price != null ? String(initialValues.price) : '')
 
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -70,6 +71,7 @@ export default function PartModal({ onAdd, onClose }: PartModalProps) {
     if (!manualPrice || isNaN(price) || price < 0) { setError('Укажите корректную цену'); return }
     setError('')
     onAdd({
+      productId: initialValues?.productId,
       name: manualName.trim(),
       quantity: qty,
       cost: parseFloat(manualCost) || 0,
@@ -84,32 +86,38 @@ export default function PartModal({ onAdd, onClose }: PartModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-card border rounded-2xl w-full max-w-md mx-4 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-base">Добавить запчасть</h2>
-          <button type="button" onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          <h2 className="font-semibold text-base">
+            {editMode ? 'Редактировать запчасть' : 'Добавить запчасть'}
+          </h2>
+          <button type="button" onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b px-5">
-          <button
-            type="button"
-            onClick={() => setTab('warehouse')}
-            className={`py-2.5 px-1 mr-4 text-sm font-medium border-b-2 transition-colors ${tab === 'warehouse' ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            Со склада
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('manual')}
-            className={`py-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === 'manual' ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
-          >
-            Вручную
-          </button>
-        </div>
+        {/* Tabs — hidden in edit mode */}
+        {!editMode && (
+          <div className="flex border-b px-5">
+            <button
+              type="button"
+              onClick={() => setTab('warehouse')}
+              className={`py-2.5 px-1 mr-4 text-sm font-medium border-b-2 transition-colors ${tab === 'warehouse' ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              Со склада
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab('manual')}
+              className={`py-2.5 px-1 text-sm font-medium border-b-2 transition-colors ${tab === 'manual' ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+            >
+              Вручную
+            </button>
+          </div>
+        )}
 
         <div className="p-5">
           {error && <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">{error}</div>}
 
-          {tab === 'warehouse' && (
+          {tab === 'warehouse' && !editMode && (
             <div className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -172,7 +180,7 @@ export default function PartModal({ onAdd, onClose }: PartModalProps) {
             </div>
           )}
 
-          {tab === 'manual' && (
+          {(tab === 'manual' || editMode) && (
             <div className="space-y-3">
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1">Название *</label>
@@ -181,7 +189,7 @@ export default function PartModal({ onAdd, onClose }: PartModalProps) {
                   onChange={e => setManualName(e.target.value)}
                   placeholder="Дисплей в сборе, Аккумулятор..."
                   className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  autoFocus
+                  autoFocus={editMode}
                 />
               </div>
               <div className="grid grid-cols-3 gap-3">
@@ -222,25 +230,27 @@ export default function PartModal({ onAdd, onClose }: PartModalProps) {
           )}
         </div>
 
-        {tab === 'manual' && (
+        {(tab === 'manual' || editMode) && (
           <div className="flex gap-2 px-5 py-4 border-t">
-            <button
-              type="button"
-              onClick={() => addManual(true)}
-              className="flex-1 py-2 text-sm font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
-            >
-              Сохранить и ещё
-            </button>
+            {!editMode && (
+              <button
+                type="button"
+                onClick={() => addManual(true)}
+                className="flex-1 py-2 text-sm font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
+              >
+                Сохранить и ещё
+              </button>
+            )}
             <button
               type="button"
               onClick={() => addManual(false)}
               className="flex-1 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
             >
-              Готово
+              {editMode ? 'Сохранить' : 'Готово'}
             </button>
           </div>
         )}
-        {tab === 'warehouse' && (
+        {tab === 'warehouse' && !editMode && (
           <div className="px-5 py-4 border-t">
             <button type="button" onClick={onClose} className="w-full py-2 text-sm font-medium border rounded-lg hover:bg-accent transition-colors">
               Закрыть

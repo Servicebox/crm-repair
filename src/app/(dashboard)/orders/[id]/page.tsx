@@ -133,6 +133,8 @@ export default function OrderDetailPage() {
   const [showPrintMenu, setShowPrintMenu] = useState(false)
   const [showWorkModal, setShowWorkModal] = useState(false)
   const [showPartModal, setShowPartModal] = useState(false)
+  const [editWorkIdx, setEditWorkIdx] = useState<number | null>(null)
+  const [editPartIdx, setEditPartIdx] = useState<number | null>(null)
   const [addPayAmount, setAddPayAmount] = useState('')
   const [addPayMethod, setAddPayMethod] = useState<'cash' | 'card' | 'transfer' | 'online'>('cash')
   const [showTerminalModal, setShowTerminalModal] = useState(false)
@@ -210,34 +212,44 @@ export default function OrderDetailPage() {
     setStatusComment('')
   }
 
-  function addWorkEntry(entry: { name: string; price: number; discount?: number; duration?: number; cost?: number; masterName?: string }, addMore: boolean) {
-    const works = [...(order.works ?? []), entry]
-    const finalCost = works.reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
-      (order.parts ?? []).reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
-    patch({ works, finalCost })
-    if (!addMore) setShowWorkModal(false)
+  type WorkItem = { name: string; price: number; discount?: number; duration?: number; cost?: number; masterName?: string }
+  type PartItem = { productId?: string; name: string; quantity: number; cost: number; price: number }
+
+  function calcFinalCost(works: WorkItem[], parts: PartItem[]) {
+    return works.reduce((s, w) => s + w.price - (w.discount ?? 0), 0) +
+      parts.reduce((s, p) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
   }
+
+  function addWorkEntry(entry: WorkItem, addMore: boolean) {
+    const currentWorks: WorkItem[] = order.works ?? []
+    const works = editWorkIdx !== null
+      ? currentWorks.map((w, i) => i === editWorkIdx ? entry : w)
+      : [...currentWorks, entry]
+    patch({ works, finalCost: calcFinalCost(works, order.parts ?? []) })
+    if (!addMore) { setShowWorkModal(false); setEditWorkIdx(null) }
+  }
+
+  function openEditWork(i: number) { setEditWorkIdx(i); setShowWorkModal(true) }
 
   function removeWork(i: number) {
-    const works = order.works.filter((_: unknown, idx: number) => idx !== i)
-    const finalCost = works.reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
-      (order.parts ?? []).reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
-    patch({ works, finalCost })
+    const works = (order.works ?? []).filter((_: WorkItem, idx: number) => idx !== i)
+    patch({ works, finalCost: calcFinalCost(works, order.parts ?? []) })
   }
 
-  function addPartEntry(entry: { productId?: string; name: string; quantity: number; cost: number; price: number }, addMore: boolean) {
-    const parts = [...(order.parts ?? []), entry]
-    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
-      parts.reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
-    patch({ parts, finalCost })
-    if (!addMore) setShowPartModal(false)
+  function addPartEntry(entry: PartItem, addMore: boolean) {
+    const currentParts: PartItem[] = order.parts ?? []
+    const parts = editPartIdx !== null
+      ? currentParts.map((p, i) => i === editPartIdx ? entry : p)
+      : [...currentParts, entry]
+    patch({ parts, finalCost: calcFinalCost(order.works ?? [], parts) })
+    if (!addMore) { setShowPartModal(false); setEditPartIdx(null) }
   }
+
+  function openEditPart(i: number) { setEditPartIdx(i); setShowPartModal(true) }
 
   function removePart(i: number) {
-    const parts = order.parts.filter((_: unknown, idx: number) => idx !== i)
-    const finalCost = (order.works ?? []).reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0) +
-      parts.reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0) - (order.discount ?? 0)
-    patch({ parts, finalCost })
+    const parts = (order.parts ?? []).filter((_: PartItem, idx: number) => idx !== i)
+    patch({ parts, finalCost: calcFinalCost(order.works ?? [], parts) })
   }
 
   function addPayment() {
@@ -617,9 +629,14 @@ export default function OrderDetailPage() {
                       <div key={i} className="py-2.5">
                         <div className="flex items-center justify-between text-sm">
                           <span className="font-medium">{w.name}</span>
-                          <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
                             <span className="font-medium">{formatCurrency(w.price - (w.discount ?? 0))}</span>
-                            <button type="button" onClick={() => removeWork(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
+                            <button type="button" onClick={() => openEditWork(i)} className="text-muted-foreground hover:text-blue-600 transition-colors" title="Редактировать">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button type="button" onClick={() => removeWork(i)} className="text-red-400 hover:text-red-600 transition-colors">
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
                         {(w.discount || w.duration || w.masterName) && (
@@ -653,12 +670,17 @@ export default function OrderDetailPage() {
                   <p className="text-sm text-muted-foreground py-2">Запчасти не добавлены</p>
                 ) : (
                   <div className="divide-y">
-                    {(order.parts ?? []).map((p: { name: string; price: number; quantity: number }, i: number) => (
+                    {(order.parts ?? []).map((p: { name: string; price: number; quantity: number; cost: number }, i: number) => (
                       <div key={i} className="flex items-center justify-between py-2.5 text-sm">
                         <span>{p.name}{p.quantity > 1 && <span className="text-muted-foreground ml-1">× {p.quantity}</span>}</span>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <span className="font-medium">{formatCurrency(p.price * p.quantity)}</span>
-                          <button type="button" onClick={() => removePart(i)} className="text-red-400 hover:text-red-600"><Minus className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => openEditPart(i)} className="text-muted-foreground hover:text-blue-600 transition-colors" title="Редактировать">
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button type="button" onClick={() => removePart(i)} className="text-red-400 hover:text-red-600 transition-colors">
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -672,13 +694,20 @@ export default function OrderDetailPage() {
           {showWorkModal && (
             <WorkModal
               onAdd={addWorkEntry}
-              onClose={() => setShowWorkModal(false)}
+              onClose={() => { setShowWorkModal(false); setEditWorkIdx(null) }}
+              masters={(employees ?? []).map(e => ({ id: String(e._id), name: e.name }))}
+              defaultMasterName={order.masterName}
+              deviceType={order.deviceType}
+              initialValues={editWorkIdx !== null ? order.works?.[editWorkIdx] : undefined}
+              editMode={editWorkIdx !== null}
             />
           )}
           {showPartModal && (
             <PartModal
               onAdd={addPartEntry}
-              onClose={() => setShowPartModal(false)}
+              onClose={() => { setShowPartModal(false); setEditPartIdx(null) }}
+              initialValues={editPartIdx !== null ? order.parts?.[editPartIdx] : undefined}
+              editMode={editPartIdx !== null}
             />
           )}
 

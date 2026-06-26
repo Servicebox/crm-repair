@@ -14,7 +14,7 @@ interface ServiceHit {
   warrantyDays?: number
 }
 
-interface WorkEntry {
+export interface WorkEntry {
   name: string
   price: number
   discount?: number
@@ -28,6 +28,9 @@ interface WorkModalProps {
   onClose: () => void
   masters?: { id: string; name: string }[]
   deviceType?: string
+  defaultMasterName?: string
+  initialValues?: Partial<WorkEntry>
+  editMode?: boolean
 }
 
 function useDebounce<T>(value: T, delay: number): T {
@@ -39,17 +42,22 @@ function useDebounce<T>(value: T, delay: number): T {
   return debounced
 }
 
-export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: WorkModalProps) {
-  const [name, setName] = useState('')
-  const [price, setPrice] = useState('')
-  const [discount, setDiscount] = useState('')
-  const [duration, setDuration] = useState('')
-  const [cost, setCost] = useState('')
-  const [masterName, setMasterName] = useState('')
+export default function WorkModal({
+  onAdd, onClose, masters = [], deviceType,
+  defaultMasterName, initialValues, editMode = false,
+}: WorkModalProps) {
+  const [name, setName] = useState(initialValues?.name ?? '')
+  const [price, setPrice] = useState(initialValues?.price != null ? String(initialValues.price) : '')
+  const [discount, setDiscount] = useState(initialValues?.discount != null ? String(initialValues.discount) : '')
+  const [duration, setDuration] = useState(initialValues?.duration != null ? String(initialValues.duration) : '')
+  const [cost, setCost] = useState(initialValues?.cost != null ? String(initialValues.cost) : '')
+  const [masterName, setMasterName] = useState(
+    initialValues?.masterName ?? defaultMasterName ?? ''
+  )
   const [error, setError] = useState('')
 
   // Service catalog search
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(initialValues?.name ?? '')
   const [showDropdown, setShowDropdown] = useState(false)
   const debouncedSearch = useDebounce(searchQuery, 300)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -68,7 +76,6 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
     staleTime: 30_000,
   })
 
-  // Close dropdown on outside click
   useEffect(() => {
     function onOutside(e: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -109,7 +116,7 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
     onAdd(entry, addMore)
     if (addMore) {
       setName(''); setPrice(''); setDiscount(''); setDuration(''); setCost('')
-      setMasterName(''); setSearchQuery('')
+      setSearchQuery('')
     }
   }
 
@@ -119,8 +126,12 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
       <div className="bg-card border rounded-2xl w-full max-w-md mx-4 shadow-2xl">
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-base">Добавить работу</h2>
-          <button type="button" onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground"><X className="w-4 h-4" /></button>
+          <h2 className="font-semibold text-base">
+            {editMode ? 'Редактировать работу' : 'Добавить работу'}
+          </h2>
+          <button type="button" onClick={onClose} className="p-1 text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
         <div className="p-5 space-y-3">
@@ -173,15 +184,13 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
           </div>
 
           <div className="border-t pt-3">
-            <div>
-              <label className="text-xs font-medium text-muted-foreground block mb-1">Наименование *</label>
-              <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Или введите вручную"
-                className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
+            <label className="text-xs font-medium text-muted-foreground block mb-1">Наименование *</label>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="Или введите вручную"
+              className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -224,7 +233,7 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1">
                 Себестоимость ₽
-                <span className="ml-1 text-muted-foreground/60 font-normal" title="ФРП, лицензии, субподряд — снижает прибыль, не выставляется клиенту">ⓘ</span>
+                <span className="ml-1 text-muted-foreground/60 font-normal" title="Снижает прибыль, не выставляется клиенту">ⓘ</span>
               </label>
               <input
                 value={cost}
@@ -262,19 +271,21 @@ export default function WorkModal({ onAdd, onClose, masters = [], deviceType }: 
         </div>
 
         <div className="flex gap-2 px-5 py-4 border-t">
-          <button
-            type="button"
-            onClick={() => handleSave(true)}
-            className="flex-1 py-2 text-sm font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
-          >
-            Сохранить и ещё
-          </button>
+          {!editMode && (
+            <button
+              type="button"
+              onClick={() => handleSave(true)}
+              className="flex-1 py-2 text-sm font-medium border border-blue-200 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors"
+            >
+              Сохранить и ещё
+            </button>
+          )}
           <button
             type="button"
             onClick={() => handleSave(false)}
             className="flex-1 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
           >
-            Готово
+            {editMode ? 'Сохранить' : 'Готово'}
           </button>
         </div>
       </div>
