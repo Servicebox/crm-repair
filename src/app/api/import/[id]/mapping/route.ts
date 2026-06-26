@@ -73,7 +73,6 @@ export async function PUT(
         { status: 400 }
       )
     }
-    const msg = err instanceof Error ? err.message : 'Ошибка сохранения маппинга'
-    return NextResponse.json({ success: false, error: msg }, { status: 500 })
+    return NextResponse.json({ success: false, error: 'Ошибка сохранения маппинга' }, { status: 500 })
   }
 }
