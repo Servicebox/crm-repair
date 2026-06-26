@@ -1,5 +1,6 @@
 import fs from 'fs'
 import * as XLSX from 'xlsx'
+import { assertReadable } from '../fileStore'
 
 export interface ExcelAnalysis {
   headers: string[]
@@ -18,6 +19,7 @@ export async function analyseExcel(
   filePath: string,
   sheetName?: string
 ): Promise<ExcelAnalysis> {
+  assertReadable(filePath)
   const stat = fs.statSync(filePath)
   const useSparse = stat.size > 20 * 1024 * 1024  // 20MB threshold
 
@@ -84,6 +86,7 @@ export async function streamExcel(
   onRow: (row: Record<string, string>, index: number) => Promise<void>,
   signal?: AbortSignal
 ): Promise<{ processed: number; failed: number }> {
+  assertReadable(filePath)
   const workbook = XLSX.readFile(filePath, {
     type: 'file',
     cellDates: true,

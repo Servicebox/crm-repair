@@ -7,11 +7,11 @@ import mongoose from 'mongoose'
 import fs from 'fs'
 import path from 'path'
 import type { ImportFileType } from '@/models/ImportJob'
+import { uploadDir } from '@/services/import/fileStore'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-const UPLOAD_BASE = process.env.UPLOAD_DIR ?? '/tmp/crm-imports'
 const MAX_FILE_SIZE = 100 * 1024 * 1024  // 100 MB
 
 const ALLOWED_EXT: Record<string, ImportFileType> = {
@@ -103,7 +103,8 @@ export async function POST(req: NextRequest) {
   let fileType: ImportFileType = ALLOWED_EXT[ext] ?? 'csv'
 
   // Save to disk
-  const jobDir = path.join(UPLOAD_BASE, companyId, new mongoose.Types.ObjectId().toString())
+  const newJobId = new mongoose.Types.ObjectId()
+  const jobDir = uploadDir(companyId, newJobId.toString())
   try {
     fs.mkdirSync(jobDir, { recursive: true })
     const savedFilename = `upload_${Date.now()}${ext}`
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
     }
 
     const job = await ImportJob.create({
+      _id: newJobId,
       organization_id: new mongoose.Types.ObjectId(companyId),
       created_by: new mongoose.Types.ObjectId(session.user.id),
       file_type: fileType,

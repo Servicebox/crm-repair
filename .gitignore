@@ -9,6 +9,9 @@ out/
 data/
 *.db
 
+# Upload storage
+data/uploads/
+
 # Environment
 .env
 .env.local
