@@ -1,9 +1,9 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Loader2, BookOpen, Smartphone, ShieldCheck, Package, Wrench } from 'lucide-react'
+import { Plus, Trash2, Loader2, BookOpen, Smartphone, ShieldCheck, Package, Wrench, Tag, Cpu } from 'lucide-react'
 
-type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect'
+type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect' | 'brand' | 'model'
 
 interface DictionaryItem {
   _id: string
@@ -15,6 +15,8 @@ interface DictionaryItem {
 
 const TABS: { type: DictionaryType; label: string; icon: React.ReactNode; hint: string }[] = [
   { type: 'deviceType', label: 'Устройства', icon: <Smartphone className="w-4 h-4" />, hint: 'Смартфон, Ноутбук, Планшет...' },
+  { type: 'brand', label: 'Бренды', icon: <Tag className="w-4 h-4" />, hint: 'Apple, Samsung, Lenovo...' },
+  { type: 'model', label: 'Модели', icon: <Cpu className="w-4 h-4" />, hint: 'iPhone 15 Pro, Galaxy S24...' },
   { type: 'condition', label: 'Внешнее состояние', icon: <ShieldCheck className="w-4 h-4" />, hint: 'Царапины, Потёртости, Трещина экрана...' },
   { type: 'accessories', label: 'Комплектация', icon: <Package className="w-4 h-4" />, hint: 'Зарядка, Чехол, Коробка...' },
   { type: 'defect', label: 'Неисправности', icon: <Wrench className="w-4 h-4" />, hint: 'Не включается, Разбит экран...' },

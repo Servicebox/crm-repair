@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 
 const DictionarySchema = z.object({
-  type: z.enum(['deviceType', 'condition', 'accessories', 'defect']),
+  type: z.enum(['deviceType', 'condition', 'accessories', 'defect', 'brand', 'model']),
   value: z.string().min(1).max(200),
   sortOrder: z.number().default(0),
   isActive: z.boolean().default(true),

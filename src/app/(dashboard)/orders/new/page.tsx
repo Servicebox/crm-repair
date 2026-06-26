@@ -123,6 +123,17 @@ export default function NewOrderPage() {
     staleTime: 60_000,
   })
 
+  const { data: dictBrand = [] } = useQuery<{ value: string }[]>({
+    queryKey: ['dictionary', 'brand'],
+    queryFn: async () => { const r = await fetch('/api/dictionary?type=brand'); const j = await r.json(); return j.data ?? [] },
+    staleTime: 60_000,
+  })
+  const { data: dictModel = [] } = useQuery<{ value: string }[]>({
+    queryKey: ['dictionary', 'model'],
+    queryFn: async () => { const r = await fetch('/api/dictionary?type=model'); const j = await r.json(); return j.data ?? [] },
+    staleTime: 60_000,
+  })
+
   const conditionOptions = dictCondition.length > 0 ? dictCondition.map(i => i.value) : CONDITION_TEMPLATES
   const accessoryOptions = dictAccessories.length > 0 ? dictAccessories.map(i => i.value) : ACCESSORY_TEMPLATES
   const defectOptions = dictDefect.length > 0 ? dictDefect.map(i => i.value) : DEFECT_TEMPLATES
@@ -385,20 +396,22 @@ export default function NewOrderPage() {
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Бренд</label>
-              <input
+              <DictionaryCombobox
+                type="brand"
                 value={deviceBrand}
-                onChange={e => setDeviceBrand(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                onChange={setDeviceBrand}
                 placeholder="Apple, Samsung, Infinix..."
+                fallback={dictBrand.map(i => i.value)}
               />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Модель</label>
-              <input
+              <DictionaryCombobox
+                type="model"
                 value={deviceModel}
-                onChange={e => setDeviceModel(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                onChange={setDeviceModel}
                 placeholder="iPhone 14 Pro Max"
+                fallback={dictModel.map(i => i.value)}
               />
             </div>
 

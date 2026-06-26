@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect'
+type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect' | 'brand' | 'model'
 
 interface DictionaryItem {
   _id: string

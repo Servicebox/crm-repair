@@ -1,6 +1,6 @@
 import mongoose, { Document, Model, Schema } from 'mongoose'
 
-export type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect'
+export type DictionaryType = 'deviceType' | 'condition' | 'accessories' | 'defect' | 'brand' | 'model'
 
 export interface IDictionary extends Document {
   type: DictionaryType
@@ -15,7 +15,7 @@ const DictionarySchema = new Schema<IDictionary>(
   {
     type: {
       type: String,
-      enum: ['deviceType', 'condition', 'accessories', 'defect'],
+      enum: ['deviceType', 'condition', 'accessories', 'defect', 'brand', 'model'],
       required: true,
       index: true,
     },
