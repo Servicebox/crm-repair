@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, User, Smartphone, Wrench, CreditCard, Plus, X, Loader2, SlidersHorizontal, CheckCircle, Printer } from 'lucide-react'
 import Link from 'next/link'
 import { DEVICE_TYPES, DEFECT_TEMPLATES, SOURCES, ACCESSORY_TEMPLATES, CONDITION_TEMPLATES } from '@/constants/orders'
+import { DictionaryCombobox } from '@/components/ui/DictionaryCombobox'
 
 const SERVICE_TEMPLATES = [
   'Чистка от пыли',
@@ -105,6 +106,26 @@ export default function NewOrderPage() {
       return json.data ?? []
     },
   })
+
+  const { data: dictCondition = [] } = useQuery<{ value: string }[]>({
+    queryKey: ['dictionary', 'condition'],
+    queryFn: async () => { const r = await fetch('/api/dictionary?type=condition'); const j = await r.json(); return j.data ?? [] },
+    staleTime: 60_000,
+  })
+  const { data: dictAccessories = [] } = useQuery<{ value: string }[]>({
+    queryKey: ['dictionary', 'accessories'],
+    queryFn: async () => { const r = await fetch('/api/dictionary?type=accessories'); const j = await r.json(); return j.data ?? [] },
+    staleTime: 60_000,
+  })
+  const { data: dictDefect = [] } = useQuery<{ value: string }[]>({
+    queryKey: ['dictionary', 'defect'],
+    queryFn: async () => { const r = await fetch('/api/dictionary?type=defect'); const j = await r.json(); return j.data ?? [] },
+    staleTime: 60_000,
+  })
+
+  const conditionOptions = dictCondition.length > 0 ? dictCondition.map(i => i.value) : CONDITION_TEMPLATES
+  const accessoryOptions = dictAccessories.length > 0 ? dictAccessories.map(i => i.value) : ACCESSORY_TEMPLATES
+  const defectOptions = dictDefect.length > 0 ? dictDefect.map(i => i.value) : DEFECT_TEMPLATES
 
   const { data: clientResults } = useQuery({
     queryKey: ['client-search', clientPhone],
@@ -353,15 +374,14 @@ export default function NewOrderPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium mb-1">Тип устройства <span className="text-red-500">*</span></label>
-              <select
+              <DictionaryCombobox
+                type="deviceType"
                 value={deviceType}
-                onChange={e => setDeviceType(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
+                onChange={setDeviceType}
+                placeholder="Смартфон, ноутбук, планшет..."
                 required
-              >
-                <option value="">Выберите</option>
-                {DEVICE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+                fallback={DEVICE_TYPES}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Бренд</label>
@@ -436,7 +456,7 @@ export default function NewOrderPage() {
                   placeholder="Царапины, сколы, трещины..."
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {CONDITION_TEMPLATES.map(t => (
+                  {conditionOptions.map(t => (
                     <button
                       key={t}
                       type="button"
@@ -458,7 +478,7 @@ export default function NewOrderPage() {
                   placeholder="Чехол, зарядка, коробка..."
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {ACCESSORY_TEMPLATES.map(t => (
+                  {accessoryOptions.map(t => (
                     <button
                       key={t}
                       type="button"
@@ -483,7 +503,7 @@ export default function NewOrderPage() {
 
           <div className="mb-4">
             <div className="flex flex-wrap gap-1 mb-2">
-              {(orderType === 'repair' ? DEFECT_TEMPLATES : SERVICE_TEMPLATES).map(t => (
+              {(orderType === 'repair' ? defectOptions : SERVICE_TEMPLATES).map(t => (
                 <button
                   key={t}
                   type="button"

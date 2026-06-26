@@ -13,6 +13,7 @@ import { getPayrollRecordModel } from '@/models/PayrollRecord'
 import { getShiftModel } from '@/models/Shift'
 import { getChatMessageModel } from '@/models/ChatMessage'
 import { getChatRoomModel } from '@/models/ChatRoom'
+import { getDictionaryModel } from '@/models/Dictionary'
 
 export function getModels(conn: mongoose.Connection) {
   return {
@@ -30,6 +31,7 @@ export function getModels(conn: mongoose.Connection) {
     Shift: getShiftModel(conn),
     ChatMessage: getChatMessageModel(conn),
     ChatRoom: getChatRoomModel(conn),
+    Dictionary: getDictionaryModel(conn),
   }
 }
 
