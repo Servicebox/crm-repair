@@ -8,6 +8,7 @@ import fs from 'fs'
 import path from 'path'
 import type { ImportFileType } from '@/models/ImportJob'
 import { uploadDir } from '@/services/import/fileStore'
+import { checkZipBomb } from '@/lib/importSecurity'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -122,6 +123,14 @@ export async function POST(req: NextRequest) {
     if (!Object.values(ALLOWED_EXT).includes(fileType)) {
       fs.unlinkSync(filePath)
       return NextResponse.json({ success: false, error: 'Неподдерживаемый формат файла' }, { status: 400 })
+    }
+
+    try {
+      checkZipBomb(filePath, fileType)
+    } catch (err: unknown) {
+      fs.unlinkSync(filePath)
+      const msg = err instanceof Error ? err.message : 'Файл отклонён по соображениям безопасности'
+      return NextResponse.json({ success: false, error: msg }, { status: 400 })
     }
 
     const job = await ImportJob.create({

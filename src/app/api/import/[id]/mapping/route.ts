@@ -5,6 +5,7 @@ import ImportJob from '@/models/ImportJob'
 import mongoose from 'mongoose'
 import { z } from 'zod'
 import type { DuplicateStrategy } from '@/models/ImportJob'
+import { validateMappingPath } from '@/lib/importSecurity'
 
 const FieldMappingSchema = z.object({
   source_column: z.string(),
@@ -46,6 +47,13 @@ export async function PUT(
     const body = await req.json()
     const parsed = MappingBodySchema.parse(body)
 
+    // Guard against MongoDB operator injection via target_field dot-paths
+    for (const field of parsed.mapping) {
+      if (field.target_field && field.target_field !== '__skip__') {
+        validateMappingPath(field.target_field)
+      }
+    }
+
     await ImportJob.updateOne({ _id: job._id }, {
       $set: {
         mapping: parsed.mapping,
@@ -58,6 +66,9 @@ export async function PUT(
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: err.errors[0].message }, { status: 400 })
+    }
+    if (err instanceof Error) {
+      return NextResponse.json({ success: false, error: err.message }, { status: 400 })
     }
     return NextResponse.json({ success: false, error: 'Ошибка сохранения маппинга' }, { status: 500 })
   }
