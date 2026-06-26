@@ -993,11 +993,26 @@ export default function OrderDetailPage() {
             const master = (employees ?? []).find(e => String(e._id) === String(order.masterId))
             if (!master?.salary) return null
 
-            const revenue = order.finalCost ?? 0
-            const partsCost = (order.parts ?? []).reduce((s: number, p: { cost: number; quantity: number }) => s + p.cost * p.quantity, 0)
-            const worksCost = (order.works ?? []).reduce((s: number, w: { cost?: number }) => s + (w.cost ?? 0), 0)
+            // Считаем напрямую из массивов works и parts — не через finalCost,
+            // чтобы запчасти и услуги всегда учитывались независимо от состояния finalCost
+            const worksRevenue = (order.works ?? []).reduce(
+              (s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0
+            )
+            const partsRevenue = (order.parts ?? []).reduce(
+              (s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0
+            )
+            const revenue = worksRevenue + partsRevenue - (order.discount ?? 0)
+
+            const partsCost = (order.parts ?? []).reduce(
+              (s: number, p: { cost: number; quantity: number }) => s + (p.cost ?? 0) * p.quantity, 0
+            )
+            const worksCost = (order.works ?? []).reduce(
+              (s: number, w: { cost?: number }) => s + (w.cost ?? 0), 0
+            )
             const profit = Math.max(0, revenue - partsCost - worksCost)
-            const totalMinutes = (order.works ?? []).reduce((s: number, w: { duration?: number }) => s + (w.duration ?? 0), 0)
+            const totalMinutes = (order.works ?? []).reduce(
+              (s: number, w: { duration?: number }) => s + (w.duration ?? 0), 0
+            )
             const earnings = calcMasterEarnings(master.salary, revenue, profit, totalMinutes)
 
             const salaryLabel: Record<string, string> = {
@@ -1018,10 +1033,33 @@ export default function OrderDetailPage() {
                     <span className="text-muted-foreground">{master.name}</span>
                     <span className="text-xs text-muted-foreground">{salaryLabel[master.salary.type]}</span>
                   </div>
-                  {master.salary.type === 'percent_profit' && (
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Прибыль по заказу</span>
-                      <span>{formatCurrency(profit)}</span>
+                  {/* Revenue breakdown so it's visible what goes into salary */}
+                  {(master.salary.type === 'percent_revenue' || master.salary.type === 'percent_profit') && (
+                    <div className="bg-muted/40 rounded-lg px-3 py-2 space-y-1">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Услуги</span>
+                        <span>{formatCurrency(worksRevenue)}</span>
+                      </div>
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Запчасти / товары</span>
+                        <span>{formatCurrency(partsRevenue)}</span>
+                      </div>
+                      {(order.discount ?? 0) > 0 && (
+                        <div className="flex justify-between text-xs text-orange-600">
+                          <span>Скидка</span>
+                          <span>−{formatCurrency(order.discount)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-xs font-medium border-t pt-1">
+                        <span>{master.salary.type === 'percent_profit' ? 'Выручка' : 'База'}</span>
+                        <span>{formatCurrency(revenue)}</span>
+                      </div>
+                      {master.salary.type === 'percent_profit' && (
+                        <div className="flex justify-between text-xs text-muted-foreground">
+                          <span>Прибыль (−себест.)</span>
+                          <span>{formatCurrency(profit)}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                   {master.salary.type === 'hourly' && totalMinutes > 0 && (

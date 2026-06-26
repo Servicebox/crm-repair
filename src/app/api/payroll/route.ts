@@ -105,13 +105,32 @@ export async function POST(req: NextRequest) {
   ])
 
   const ordersCount = orders.length
-  type LeanOrder = { works?: unknown[]; finalCost?: number; parts?: Array<{cost: number; quantity: number}> }
+  type LeanWork = { price?: number; discount?: number; cost?: number }
+  type LeanPart = { price?: number; quantity?: number; cost?: number }
+  type LeanOrder = {
+    works?: LeanWork[];
+    parts?: LeanPart[];
+    discount?: number;
+  }
   type LeanShift = { durationMinutes?: number }
+
   const worksCount = (orders as LeanOrder[]).reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
-  const revenue = (orders as LeanOrder[]).reduce((sum, o) => sum + (o.finalCost ?? 0), 0)
+
+  // Compute revenue and profit directly from works/parts arrays so that
+  // parts and services are always included regardless of stored finalCost
+  const revenue = (orders as LeanOrder[]).reduce((sum, o) => {
+    const worksRev = (o.works ?? []).reduce((s, w) => s + (w.price ?? 0) - (w.discount ?? 0), 0)
+    const partsRev = (o.parts ?? []).reduce((s, p) => s + (p.price ?? 0) * (p.quantity ?? 0), 0)
+    return sum + worksRev + partsRev - (o.discount ?? 0)
+  }, 0)
+
   const profit = (orders as LeanOrder[]).reduce((sum, o) => {
-    const partsCost = (o.parts ?? []).reduce((ps, p) => ps + p.cost * p.quantity, 0)
-    return sum + (o.finalCost ?? 0) - partsCost
+    const worksRev = (o.works ?? []).reduce((s, w) => s + (w.price ?? 0) - (w.discount ?? 0), 0)
+    const partsRev = (o.parts ?? []).reduce((s, p) => s + (p.price ?? 0) * (p.quantity ?? 0), 0)
+    const partsCost = (o.parts ?? []).reduce((s, p) => s + (p.cost ?? 0) * (p.quantity ?? 0), 0)
+    const worksCost = (o.works ?? []).reduce((s, w) => s + (w.cost ?? 0), 0)
+    const orderRevenue = worksRev + partsRev - (o.discount ?? 0)
+    return sum + Math.max(0, orderRevenue - partsCost - worksCost)
   }, 0)
 
   const totalMinutes = (shifts as LeanShift[]).reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
