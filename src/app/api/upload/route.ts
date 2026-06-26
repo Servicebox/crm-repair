@@ -6,13 +6,23 @@ import sharp from 'sharp'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_SIZE_AVATAR = 10 * 1024 * 1024  // 10 MB input (sharp compresses it down)
-const MAX_SIZE_LOGO   = 10 * 1024 * 1024  // 10 MB input
+const MAX_SIZE_AVATAR = 10 * 1024 * 1024
+const MAX_SIZE_LOGO   = 10 * 1024 * 1024
 
 const ALLOWED_MIME = new Set([
   'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
   'image/gif', 'image/svg+xml', 'image/bmp', 'image/tiff',
 ])
+
+// Store files outside /public/ so reading and writing always use the same
+// process.cwd() (same Node.js process), regardless of how pm2/Next.js
+// resolves the static-file root at startup.
+// Files are served through /api/serve/[...path]/route.ts instead.
+function mediaRoot(): string {
+  return process.env.UPLOAD_DIR
+    ? path.resolve(process.env.UPLOAD_DIR, 'media')
+    : path.join(process.cwd(), 'data', 'uploads', 'media')
+}
 
 const TYPE_CONFIG: Record<string, {
   dir: string
@@ -64,7 +74,7 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', config.dir)
+  const uploadDir = path.join(mediaRoot(), config.dir)
   try {
     fs.mkdirSync(uploadDir, { recursive: true })
 
@@ -73,11 +83,9 @@ export async function POST(req: NextRequest) {
     let ext: string
 
     if (isSvg) {
-      // Keep SVG as-is — sharp doesn't handle SVG output well
       outputBuffer = buffer
       ext = '.svg'
     } else {
-      // Convert to WebP + resize + compress
       outputBuffer = await sharp(buffer)
         .resize(config.maxWidth, config.maxHeight, {
           fit: 'inside',
@@ -92,7 +100,8 @@ export async function POST(req: NextRequest) {
     const filePath = path.join(uploadDir, filename)
     fs.writeFileSync(filePath, outputBuffer)
 
-    const url = `/uploads/${config.dir}/${filename}`
+    // Served via /api/serve/ route — avoids Next.js static-serving path issues
+    const url = `/api/serve/${config.dir}/${filename}`
     return NextResponse.json({ success: true, data: { url } }, { status: 200 })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Ошибка сохранения'

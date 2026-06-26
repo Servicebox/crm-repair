@@ -6,15 +6,24 @@ node_modules/
 out/
 
 # Database
-data/
+data/*.db
 *.db
 
-# Upload storage
-data/uploads/
+# Upload storage (runtime files — not in git, only .gitkeep placeholder files)
+data/uploads/*
+!data/uploads/media/
+data/uploads/media/*
+!data/uploads/media/avatars/
+!data/uploads/media/logos/
+data/uploads/media/avatars/*
+!data/uploads/media/avatars/.gitkeep
+data/uploads/media/logos/*
+!data/uploads/media/logos/.gitkeep
 public/uploads/avatars/*
-public/uploads/logos/*
 !public/uploads/avatars/.gitkeep
+public/uploads/logos/*
 !public/uploads/logos/.gitkeep
+
 
 # Environment
 .env
