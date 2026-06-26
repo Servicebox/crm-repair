@@ -11,6 +11,10 @@ data/
 
 # Upload storage
 data/uploads/
+public/uploads/avatars/*
+public/uploads/logos/*
+!public/uploads/avatars/.gitkeep
+!public/uploads/logos/.gitkeep
 
 # Environment
 .env

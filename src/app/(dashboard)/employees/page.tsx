@@ -1,8 +1,8 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2 } from 'lucide-react'
+import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 
@@ -27,6 +27,7 @@ interface Employee {
   email: string
   role: string
   phone?: string
+  avatar?: string
   isActive: boolean
   isEmailVerified: boolean
   salary?: { type: string; value: number; hourlyRate?: number; overtimeMultiplier?: number; guaranteed: number }
@@ -162,6 +163,58 @@ export default function EmployeesPage() {
     queryClient.invalidateQueries({ queryKey: ['employees'] })
   }
 
+  async function handleAvatarUpload(emp: Employee, file: File) {
+    const formData = new FormData()
+    formData.append('file', file)
+    const res = await fetch('/api/upload?type=avatar', { method: 'POST', body: formData })
+    const json = await res.json()
+    if (!res.ok || !json.success) { alert(json.error ?? 'Ошибка загрузки'); return }
+    await fetch(`/api/employees/${emp._id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar: json.data.url }),
+    })
+    queryClient.invalidateQueries({ queryKey: ['employees'] })
+  }
+
+  function AvatarCell({ emp }: { emp: Employee }) {
+    const fileRef = useRef<HTMLInputElement>(null)
+    const [uploading, setUploading] = useState(false)
+    return (
+      <div className="relative w-10 h-10 shrink-0 group">
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={async e => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            setUploading(true)
+            await handleAvatarUpload(emp, file)
+            setUploading(false)
+            e.target.value = ''
+          }}
+        />
+        {emp.avatar ? (
+          <img src={emp.avatar} alt={emp.name} className="w-10 h-10 rounded-full object-cover border" />
+        ) : (
+          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-blue-600">
+            {emp.name.charAt(0).toUpperCase()}
+          </div>
+        )}
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={uploading}
+          className="absolute inset-0 rounded-full bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition"
+        >
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+        </button>
+      </div>
+    )
+  }
+
   const list = employees ?? []
   const activeEmployees = list.filter(e => e.isActive)
 
@@ -229,9 +282,7 @@ export default function EmployeesPage() {
               {list.map(emp => (
                 <div key={emp._id} className={cn('bg-card border rounded-xl p-4', !emp.isActive && 'opacity-60')}>
                   <div className="flex items-start gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center font-semibold text-blue-600">
-                      {emp.name.charAt(0).toUpperCase()}
-                    </div>
+                    <AvatarCell emp={emp} />
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold truncate">{emp.name}</div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">

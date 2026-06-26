@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, Loader2, Building2, Palette, Bell, Wrench, Shield } from 'lucide-react'
+import { LogoUpload } from '@/components/ui/ImageUpload'
 
 type FieldProps = {
   label: string
@@ -174,16 +175,12 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">URL логотипа</label>
-                <input
-                  value={(form.logo as string) ?? ''}
-                  onChange={e => setForm(p => ({ ...p, logo: e.target.value }))}
-                  className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://..."
+                <label className="block text-sm font-medium mb-2">Логотип компании</label>
+                <LogoUpload
+                  currentUrl={(form.logo as string) || undefined}
+                  onUploaded={url => setForm(p => ({ ...p, logo: url }))}
+                  onRemove={() => setForm(p => ({ ...p, logo: '' }))}
                 />
-                {!!form.logo && (
-                  <img src={form.logo as string} alt="Logo" className="mt-2 h-16 object-contain rounded border" />
-                )}
               </div>
             </div>
           )}
