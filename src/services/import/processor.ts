@@ -1,3 +1,4 @@
+import fs from 'fs'
 import path from 'path'
 import mongoose from 'mongoose'
 import ImportJob, { type IFieldMapping, type DuplicateStrategy, type IImportJob } from '@/models/ImportJob'
@@ -246,6 +247,16 @@ export async function runImport(jobId: string, companyId: string, dbName: string
         ? { $push: { import_errors: { $each: remaining, $slice: -500 } } }
         : {}),
     })
+
+    // Clean up the uploaded file — data is now in the database (but not if cancelled)
+    if (!abortController.signal.aborted) {
+      try {
+        const fileDir = path.dirname(job.storage_path)
+        fs.rmSync(fileDir, { recursive: true, force: true })
+      } catch {
+        console.warn('[import] Could not clean up upload dir:', job.storage_path)
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err)
     await ImportJob.updateOne({ _id: jobId }, {
@@ -263,5 +274,13 @@ export async function runImport(jobId: string, companyId: string, dbName: string
         },
       },
     })
+
+    // Clean up the uploaded file — data is now in the database
+    try {
+      const fileDir = path.dirname(job.storage_path)
+      fs.rmSync(fileDir, { recursive: true, force: true })
+    } catch {
+      console.warn('[import] Could not clean up upload dir:', job.storage_path)
+    }
   }
 }

@@ -4,6 +4,7 @@ import { connectToDatabase } from '@/lib/mongodb'
 import ImportJob from '@/models/ImportJob'
 import mongoose from 'mongoose'
 import fs from 'fs'
+import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,13 +52,24 @@ export async function DELETE(
   if (job.status === 'importing') {
     // Signal cancellation — the processor polls status and will abort
     await ImportJob.updateOne({ _id: job._id }, { $set: { status: 'cancelled' } })
+
+    // Clean up the uploaded file
+    if (job.storage_path) {
+      try {
+        const fileDir = path.dirname(job.storage_path)
+        fs.rmSync(fileDir, { recursive: true, force: true })
+      } catch {
+        // Non-fatal: file may already be gone
+      }
+    }
+
     return NextResponse.json({ success: true, data: { cancelled: true } })
   }
 
   // Clean up uploaded file
   if (job.storage_path) {
     try {
-      const dir = require('path').dirname(job.storage_path)
+      const dir = path.dirname(job.storage_path)
       fs.rmSync(dir, { recursive: true, force: true })
     } catch { /* file may already be gone */ }
   }
