@@ -1,5 +1,12 @@
 import fs from 'fs'
 
+export class ValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ValidationError'
+  }
+}
+
 const MAX_DECOMPRESSED_RATIO = 100   // refuse if compressed < 1% of decompressed
 const MAX_DECOMPRESSED_BYTES = 500 * 1024 * 1024  // 500 MB hard cap
 
@@ -26,10 +33,12 @@ export function checkZipBomb(filePath: string, fileType: string): void {
     fs.readSync(fd, tail, 0, tailSize, compressedSize - tailSize)
 
     let uncompressedTotal = 0
-    // Scan for local file headers (PK\x03\x04) and sum their uncompressed sizes
-    for (let i = 0; i < tail.length - 30; i++) {
-      if (tail[i] === 0x50 && tail[i+1] === 0x4B && tail[i+2] === 0x03 && tail[i+3] === 0x04) {
-        const uncompressed = tail.readUInt32LE(i + 22)
+    // Scan for central directory headers (PK\x01\x02)
+    // The central directory always sits at the end of the ZIP, so tail-read works for any size.
+    // Uncompressed size is at byte offset +24 from the signature.
+    for (let i = 0; i < tail.length - 46; i++) {
+      if (tail[i] === 0x50 && tail[i+1] === 0x4B && tail[i+2] === 0x01 && tail[i+3] === 0x02) {
+        const uncompressed = tail.readUInt32LE(i + 24)
         uncompressedTotal += uncompressed
       }
     }
@@ -63,13 +72,9 @@ const ALLOWED_PATH_CHARS = /^[a-zA-Z0-9_.]+$/
 
 export function validateMappingPath(targetField: string): void {
   if (!ALLOWED_PATH_CHARS.test(targetField)) {
-    throw new Error(
+    throw new ValidationError(
       `Недопустимое имя поля для маппинга: "${targetField}". ` +
       'Разрешены только буквы, цифры, точки и подчёркивания.'
     )
-  }
-  // Prevent MongoDB operator injection
-  if (targetField.startsWith('$') || targetField.includes('$')) {
-    throw new Error(`Недопустимый символ $ в имени поля: "${targetField}"`)
   }
 }

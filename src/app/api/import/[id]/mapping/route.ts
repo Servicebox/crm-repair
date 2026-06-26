@@ -5,7 +5,7 @@ import ImportJob from '@/models/ImportJob'
 import mongoose from 'mongoose'
 import { z } from 'zod'
 import type { DuplicateStrategy } from '@/models/ImportJob'
-import { validateMappingPath } from '@/lib/importSecurity'
+import { validateMappingPath, ValidationError } from '@/lib/importSecurity'
 
 const FieldMappingSchema = z.object({
   source_column: z.string(),
@@ -67,9 +67,13 @@ export async function PUT(
     if (err instanceof z.ZodError) {
       return NextResponse.json({ success: false, error: err.errors[0].message }, { status: 400 })
     }
-    if (err instanceof Error) {
-      return NextResponse.json({ success: false, error: err.message }, { status: 400 })
+    if (err instanceof ValidationError) {
+      return NextResponse.json(
+        { success: false, error: err.message },
+        { status: 400 }
+      )
     }
-    return NextResponse.json({ success: false, error: 'Ошибка сохранения маппинга' }, { status: 500 })
+    const msg = err instanceof Error ? err.message : 'Ошибка сохранения маппинга'
+    return NextResponse.json({ success: false, error: msg }, { status: 500 })
   }
 }
