@@ -13,31 +13,55 @@ const XML_PARSER_OPTIONS = {
   attributeNamePrefix: '@_',
   parseTagValue: true,
   trimValues: true,
+  processEntities: true,   // Bug #2: decode &#xNNN; numeric character references
+  htmlEntities: true,      // also decode HTML-style named entities
   isArray: () => false,
 }
 
 /**
  * Flatten a potentially nested object to a flat key:value map.
- * Used to normalise deeply-nested XML structures into tabular rows.
- * E.g. { client: { name: 'Ivan', phone: '79001234567' } }
- *   → { 'client.name': 'Ivan', 'client.phone': '79001234567' }
+ *
+ * Handles the fast-xml-parser mixed-content model:
+ *   <name attr="ФИО">Борисова</name>  →  { '#text': 'Борисова', '@_attr': 'ФИО' }
+ *
+ * For mixed-content nodes we use the text value for the parent key and
+ * silently discard the attribute siblings (they are XML metadata, not
+ * tabular data).  Pure attribute keys (no text sibling) are also skipped
+ * because they don't map to importable data columns.
  */
-function flatten(obj: unknown, prefix = '', out: Record<string, string> = {}): Record<string, string> {
+function flatten(
+  obj: unknown,
+  prefix = '',
+  out: Record<string, string> = {}
+): Record<string, string> {
   if (obj == null) return out
 
   if (typeof obj !== 'object') {
-    out[prefix] = String(obj)
+    if (prefix) out[prefix] = String(obj)
     return out
   }
 
-  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+  const record = obj as Record<string, unknown>
+  const keys = Object.keys(record)
+
+  // Mixed-content node: has '#text' key → use text as value for this path
+  if (keys.includes('#text')) {
+    const text = record['#text']
+    if (prefix) out[prefix] = text == null ? '' : String(text)
+    return out
+  }
+
+  for (const [key, value] of Object.entries(record)) {
+    // Skip attribute keys — they are XML metadata, not importable columns
+    if (key.startsWith('@_')) continue
+
     const nextKey = prefix ? `${prefix}.${key}` : key
+
     if (value != null && typeof value === 'object' && !Array.isArray(value)) {
       flatten(value, nextKey, out)
     } else if (Array.isArray(value)) {
-      // Arrays: take the first element for header discovery, index later
       if (value.length > 0 && typeof value[0] === 'object') {
-        flatten(value[0], nextKey, out)
+        flatten(value[0] as Record<string, unknown>, nextKey, out)
       } else {
         out[nextKey] = value.join(', ')
       }
@@ -49,17 +73,24 @@ function flatten(obj: unknown, prefix = '', out: Record<string, string> = {}): R
 }
 
 /**
- * Auto-detect the repeating element in parsed XML.
- * Looks for the first array value in the top-level object.
+ * Auto-detect the repeating element path in parsed XML.
+ * Recursively walks the object looking for the first array value,
+ * skipping attribute keys (@_*) which are never arrays of rows.
+ * Bounded to 5 levels deep to avoid runaway traversal.
  */
-function findRepeatingPath(parsed: Record<string, unknown>): string | null {
-  for (const [key, value] of Object.entries(parsed)) {
-    if (Array.isArray(value)) return key
+function findRepeatingPath(
+  obj: Record<string, unknown>,
+  prefix = '',
+  depth = 0
+): string | null {
+  if (depth >= 5) return null
+  for (const [key, value] of Object.entries(obj)) {
+    if (key.startsWith('@_')) continue
+    const path = prefix ? `${prefix}.${key}` : key
+    if (Array.isArray(value)) return path
     if (value && typeof value === 'object') {
-      // One level deeper
-      for (const [k2, v2] of Object.entries(value as Record<string, unknown>)) {
-        if (Array.isArray(v2)) return `${key}.${k2}`
-      }
+      const found = findRepeatingPath(value as Record<string, unknown>, path, depth + 1)
+      if (found) return found
     }
   }
   return null
@@ -72,20 +103,13 @@ function getAtPath(obj: unknown, dotPath: string): unknown {
   }, obj)
 }
 
-/**
- * Parse & analyse an XML file. Reads the full file — suitable for XML up to ~50MB.
- * For truly large XML (100MB+) a SAX-style streaming parser (expat-xml) would be needed,
- * but CRM export files are typically <20MB.
- */
 export async function analyseXml(filePath: string): Promise<XmlAnalysis> {
   const content = fs.readFileSync(filePath, 'utf-8')
-
   const parser = new XMLParser(XML_PARSER_OPTIONS)
   const parsed = parser.parse(content) as Record<string, unknown>
 
   const repeatingPath = findRepeatingPath(parsed)
   if (!repeatingPath) {
-    // Single-record or non-tabular XML — wrap root in array
     const flattened = flatten(parsed)
     return {
       headers: Object.keys(flattened),
@@ -98,22 +122,17 @@ export async function analyseXml(filePath: string): Promise<XmlAnalysis> {
   const rows = getAtPath(parsed, repeatingPath)
   const rowArray = Array.isArray(rows) ? rows : [rows]
 
-  const sample = rowArray.slice(0, 50).map(r => flatten(r))
+  const sample = rowArray.slice(0, 50).map(r => flatten(r as Record<string, unknown>))
   const headers = sample.length > 0
     ? [...new Set(sample.flatMap(r => Object.keys(r)))]
     : []
 
-  return {
-    headers,
-    sample,
-    total_rows: rowArray.length,
-    encoding: 'UTF-8',
-  }
+  return { headers, sample, total_rows: rowArray.length, encoding: 'UTF-8' }
 }
 
 /**
  * Stream XML rows one by one.
- * Parses entire file then yields — acceptable for files the XMLParser can handle.
+ * Parses entire file then yields — acceptable for XML up to ~50MB.
  */
 export async function streamXml(
   filePath: string,
@@ -133,7 +152,7 @@ export async function streamXml(
 
   for (const rawRow of rows) {
     if (signal?.aborted) break
-    const row = flatten(rawRow)
+    const row = flatten(rawRow as Record<string, unknown>)
     try {
       await onRow(row, processed)
       processed++
