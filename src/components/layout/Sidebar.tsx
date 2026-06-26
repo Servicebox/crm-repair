@@ -79,6 +79,7 @@ const NAV: NavItem[] = [
       { label: 'API и интеграции', href: '/settings/api', icon: Code2, roles: ['owner', 'admin'] },
       { label: 'Библиотека данных', href: '/settings/dictionary', icon: BookOpen, roles: ['owner', 'admin'] },
       { label: 'Форма приёмки', href: '/settings/reception', icon: ClipboardList, roles: ['owner', 'admin'] },
+      { label: 'Шаблоны документов', href: '/settings/documents', icon: FileText, roles: ['owner', 'admin'] },
       { label: 'Этикетка', href: '/settings/label', icon: Tag, roles: ['owner', 'admin'] },
       { label: 'Кассы', href: '/settings/cashier', icon: Receipt, roles: ['owner', 'admin'] },
     ],

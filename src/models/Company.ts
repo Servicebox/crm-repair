@@ -1,5 +1,21 @@
 import mongoose, { Document, Model, Schema } from 'mongoose'
 
+export interface DocTemplateSettings {
+  showLogo: boolean
+  showRequisites: boolean
+  headerNote: string
+  footerText: string
+  legalText: string
+  showQr: boolean
+  showTearOff: boolean
+}
+
+export interface WorksActTemplateSettings extends DocTemplateSettings {
+  showParts: boolean
+  warrantyText: string
+  signatureNote: string
+}
+
 export interface ICompany extends Document {
   name: string
   slug: string
@@ -51,6 +67,11 @@ export interface ICompany extends Document {
   labelSettings?: unknown
   fiscalSettings?: unknown
   cashierSettings?: unknown
+  documentTemplates?: {
+    receipt?: DocTemplateSettings
+    acceptance?: DocTemplateSettings
+    worksAct?: WorksActTemplateSettings
+  }
   createdAt: Date
   updatedAt: Date
 }
@@ -146,6 +167,7 @@ const CompanySchema = new Schema<ICompany>(
     labelSettings: { type: Schema.Types.Mixed, default: null },
     fiscalSettings: { type: Schema.Types.Mixed, default: null },
     cashierSettings: { type: Schema.Types.Mixed, default: null },
+    documentTemplates: { type: Schema.Types.Mixed, default: null },
   },
   { timestamps: true }
 )

@@ -55,6 +55,15 @@ function PrintContent() {
     },
   })
 
+  const { data: docTemplates } = useQuery({
+    queryKey: ['settings-documents'],
+    queryFn: async () => {
+      const res = await fetch('/api/settings/documents')
+      const json = await res.json()
+      return json.data ?? {}
+    },
+  })
+
   useEffect(() => {
     if (!orderData?.number) return
     const trackUrl = `${window.location.origin}/track/${orderData.number}`
@@ -129,6 +138,12 @@ function PrintContent() {
 
   // ---------- ACT (акт приёмки, копия сервиса) ----------
   if (printType === 'act') {
+    const tpl = docTemplates?.acceptance ?? {}
+    const showLogo = tpl.showLogo !== false
+    const showRequisites = tpl.showRequisites !== false
+    const showQr = tpl.showQr !== false
+    const showTearOff = tpl.showTearOff !== false
+
     return (
       <div style={{ background: 'white', minHeight: '100vh', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000' }}>
         <style>{`
@@ -146,13 +161,19 @@ function PrintContent() {
         </div>
 
         <div style={{ maxWidth: 680, margin: '0 auto', padding: '0 16px' }}>
+          {tpl.headerNote && (
+            <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>
+              {tpl.headerNote}
+            </div>
+          )}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
+              {showLogo && company.logo && <img src={company.logo} alt="" style={{ height: 36, marginBottom: 4 }} />}
               <div style={{ fontWeight: 'bold', fontSize: 16 }}>{company.name}</div>
-              {company.phone && <div>{company.phone}</div>}
-              {company.address && <div>{company.address}</div>}
-              {company.inn && <div>ИНН: {company.inn}</div>}
-              {company.ogrn && <div>ОГРН: {company.ogrn}</div>}
+              {showRequisites && company.phone && <div>{company.phone}</div>}
+              {showRequisites && company.address && <div>{company.address}</div>}
+              {showRequisites && company.inn && <div>ИНН: {company.inn}</div>}
+              {showRequisites && company.ogrn && <div>ОГРН: {company.ogrn}</div>}
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 'bold', fontSize: 18 }}>АКТ ПРИЁМКИ</div>
@@ -235,7 +256,7 @@ function PrintContent() {
           </div>
 
           {/* QR code */}
-          {qrDataUrl && (
+          {showQr && qrDataUrl && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, padding: '6px 0' }}>
               <img src={qrDataUrl} style={{ width: 56, height: 56 }} alt="QR" />
               <div style={{ fontSize: 10, color: '#444' }}>
@@ -245,24 +266,35 @@ function PrintContent() {
             </div>
           )}
 
+          {tpl.legalText && (
+            <div style={{ fontSize: 9, color: '#666', marginTop: 6 }}>{tpl.legalText}</div>
+          )}
+          {tpl.footerText && (
+            <div style={{ textAlign: 'center', fontSize: 10, color: '#444', marginTop: 6 }}>{tpl.footerText}</div>
+          )}
+
           {/* Tear-off */}
-          <div className="dashed" style={{ marginTop: 20 }} />
-          <div style={{ textAlign: 'center', fontSize: 10, color: '#888', marginBottom: 4 }}>
-            ✂ — ОТРЫВНОЙ ТАЛОН КЛИЕНТУ — ✂
-          </div>
-          <div className="dashed" />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
-            <div>
-              <b>{order.number}</b> · {company.name}<br />
-              {order.clientName} · {order.clientPhone}<br />
-              {order.deviceType} {order.deviceBrand} {order.deviceModel}
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              Принят: {formatDate(order.acceptedAt ?? order.createdAt)}<br />
-              {order.dueDate && <>Срок: {formatDate(order.dueDate)}<br /></>}
-              Тел. сервиса: {company.phone}
-            </div>
-          </div>
+          {showTearOff && (
+            <>
+              <div className="dashed" style={{ marginTop: 20 }} />
+              <div style={{ textAlign: 'center', fontSize: 10, color: '#888', marginBottom: 4 }}>
+                ✂ — ОТРЫВНОЙ ТАЛОН КЛИЕНТУ — ✂
+              </div>
+              <div className="dashed" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
+                <div>
+                  <b>{order.number}</b> · {company.name}<br />
+                  {order.clientName} · {order.clientPhone}<br />
+                  {order.deviceType} {order.deviceBrand} {order.deviceModel}
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  Принят: {formatDate(order.acceptedAt ?? order.createdAt)}<br />
+                  {order.dueDate && <>Срок: {formatDate(order.dueDate)}<br /></>}
+                  Тел. сервиса: {company.phone}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     )
@@ -270,6 +302,14 @@ function PrintContent() {
 
   // ---------- АКТ О ВЫПОЛНЕННЫХ РАБОТАХ ----------
   if (printType === 'works-act') {
+    const wtpl = docTemplates?.worksAct ?? {}
+    const wShowLogo = wtpl.showLogo !== false
+    const wShowRequisites = wtpl.showRequisites !== false
+    const wShowParts = wtpl.showParts !== false
+    const wShowQr = wtpl.showQr !== false
+    const wWarrantyText = wtpl.warrantyText ?? ''
+    const wSignatureNote = wtpl.signatureNote ?? ''
+
     const worksTotal = (order.works ?? []).reduce((s: number, w: { price: number; discount?: number }) => s + w.price - (w.discount ?? 0), 0)
     const partsTotal = (order.parts ?? []).reduce((s: number, p: { price: number; quantity: number }) => s + p.price * p.quantity, 0)
     const totalPaidForAct = (order.payments ?? []).reduce((s: number, p: { amount: number }) => s + p.amount, 0)
@@ -296,13 +336,19 @@ function PrintContent() {
         </div>
 
         <div style={{ maxWidth: 700, margin: '0 auto', padding: '0 16px' }}>
+          {wtpl.headerNote && (
+            <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>
+              {wtpl.headerNote}
+            </div>
+          )}
           {/* Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
+              {wShowLogo && company.logo && <img src={company.logo} alt="" style={{ height: 36, marginBottom: 4 }} />}
               <div style={{ fontWeight: 'bold', fontSize: 15 }}>{company.name}</div>
-              {company.address && <div style={{ fontSize: 11 }}>{company.address}</div>}
-              {company.phone && <div style={{ fontSize: 11 }}>{company.phone}</div>}
-              {company.inn && <div style={{ fontSize: 11 }}>ИНН: {company.inn}{company.ogrn ? ` · ОГРН: ${company.ogrn}` : ''}</div>}
+              {wShowRequisites && company.address && <div style={{ fontSize: 11 }}>{company.address}</div>}
+              {wShowRequisites && company.phone && <div style={{ fontSize: 11 }}>{company.phone}</div>}
+              {wShowRequisites && company.inn && <div style={{ fontSize: 11 }}>ИНН: {company.inn}{company.ogrn ? ` · ОГРН: ${company.ogrn}` : ''}</div>}
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontWeight: 'bold', fontSize: 17 }}>АКТ О ВЫПОЛНЕННЫХ РАБОТАХ</div>
@@ -381,7 +427,7 @@ function PrintContent() {
           )}
 
           {/* Parts table */}
-          {(order.parts ?? []).length > 0 && (
+          {wShowParts && (order.parts ?? []).length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Использованные материалы:</div>
               <table>
@@ -455,6 +501,9 @@ function PrintContent() {
           {order.warrantyExpires && (
             <div>Действует до: {formatDate(order.warrantyExpires)}</div>
           )}
+          {wWarrantyText && (
+            <div style={{ fontSize: 10, color: '#555', marginTop: 4 }}>{wWarrantyText}</div>
+          )}
 
           {/* Signatures */}
           <div className="divider" />
@@ -468,9 +517,12 @@ function PrintContent() {
               <div style={{ marginTop: 24 }}>Подпись: _______________________</div>
             </div>
           </div>
+          {wSignatureNote && (
+            <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>{wSignatureNote}</div>
+          )}
 
           {/* QR */}
-          {qrDataUrl && (
+          {wShowQr && qrDataUrl && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, borderTop: '1px dashed #ccc', paddingTop: 10 }}>
               <img src={qrDataUrl} style={{ width: 60, height: 60 }} alt="QR" />
               <div style={{ fontSize: 10, color: '#555' }}>
@@ -480,12 +532,24 @@ function PrintContent() {
               </div>
             </div>
           )}
+          {wtpl.footerText && (
+            <div style={{ textAlign: 'center', fontSize: 10, color: '#444', marginTop: 8 }}>{wtpl.footerText}</div>
+          )}
+          {wtpl.legalText && (
+            <div style={{ fontSize: 9, color: '#666', marginTop: 6 }}>{wtpl.legalText}</div>
+          )}
         </div>
       </div>
     )
   }
 
   // ---------- КВИТАНЦИЯ КЛИЕНТУ (54-ФЗ compliant receipt) ----------
+  const rtpl = docTemplates?.receipt ?? {}
+  const rShowLogo = rtpl.showLogo !== false
+  const rShowRequisites = rtpl.showRequisites !== false
+  const rShowQr = rtpl.showQr !== false
+  const rShowTearOff = rtpl.showTearOff !== false
+
   return (
     <div style={{ background: 'white', minHeight: '100vh', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000' }}>
       <style>{`
@@ -507,13 +571,18 @@ function PrintContent() {
       </div>
 
       <div style={{ maxWidth: 520, margin: '0 auto', padding: '0 16px' }}>
+        {rtpl.headerNote && (
+          <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '5px 8px', marginBottom: 8, fontSize: 10 }}>
+            {rtpl.headerNote}
+          </div>
+        )}
         {/* Company header */}
         <div className="center" style={{ marginBottom: 8 }}>
-          {company.logo && <img src={company.logo} alt="" style={{ height: 40, marginBottom: 4 }} />}
+          {rShowLogo && company.logo && <img src={company.logo} alt="" style={{ height: 40, marginBottom: 4 }} />}
           <div className="bold" style={{ fontSize: 15 }}>{company.name}</div>
-          {company.address && <div className="small">{company.address}</div>}
-          {company.phone && <div className="small">{company.phone}</div>}
-          {company.inn && <div className="small">ИНН: {company.inn} {company.ogrn ? `· ОГРН: ${company.ogrn}` : ''}</div>}
+          {rShowRequisites && company.address && <div className="small">{company.address}</div>}
+          {rShowRequisites && company.phone && <div className="small">{company.phone}</div>}
+          {rShowRequisites && company.inn && <div className="small">ИНН: {company.inn} {company.ogrn ? `· ОГРН: ${company.ogrn}` : ''}</div>}
         </div>
 
         <div className="divider" />
@@ -595,17 +664,25 @@ function PrintContent() {
 
         <div className="divider" />
 
-        {/* Legal footer (54-ФЗ / договор) */}
-        <div className="small center" style={{ marginBottom: 8 }}>
-          Настоящая квитанция является договором-офертой на оказание сервисных услуг.<br />
-          Принятие устройства подтверждает согласие с условиями ремонта.{' '}
-          {company.website && <>Подробнее: {company.website}</>}
-        </div>
+        {/* Legal footer */}
+        {rtpl.legalText ? (
+          <div className="small center" style={{ marginBottom: 8 }}>{rtpl.legalText}</div>
+        ) : (
+          <div className="small center" style={{ marginBottom: 8 }}>
+            Настоящая квитанция является договором-офертой на оказание сервисных услуг.<br />
+            Принятие устройства подтверждает согласие с условиями ремонта.{' '}
+            {company.website && <>Подробнее: {company.website}</>}
+          </div>
+        )}
+
+        {rtpl.footerText && (
+          <div className="small center" style={{ marginBottom: 6, color: '#555' }}>{rtpl.footerText}</div>
+        )}
 
         {/* QR + Signature */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <div>
-            {qrDataUrl && (
+            {rShowQr && qrDataUrl && (
               <div>
                 <img src={qrDataUrl} style={{ width: 60, height: 60 }} alt="QR" />
                 <div className="small">Статус заказа</div>
@@ -629,6 +706,25 @@ function PrintContent() {
                 <span>{formatCurrency(p.amount)}</span>
               </div>
             ))}
+          </>
+        )}
+
+        {/* Tear-off for receipt */}
+        {rShowTearOff && (
+          <>
+            <div style={{ borderTop: '1px dashed #000', margin: '14px 0 4px' }} />
+            <div className="center small" style={{ marginBottom: 4 }}>✂ — ОТРЫВНОЙ ТАЛОН — ✂</div>
+            <div style={{ borderTop: '1px dashed #000', marginBottom: 6 }} />
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10 }}>
+              <div>
+                <b>{order.number}</b> · {company.name}<br />
+                {order.clientName}
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                {formatDate(order.acceptedAt ?? order.createdAt)}<br />
+                Тел: {company.phone}
+              </div>
+            </div>
           </>
         )}
       </div>
