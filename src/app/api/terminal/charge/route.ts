@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   const { amount, orderNumber } = parsed.data
 
   await connectToDatabase()
-  const company = await Company.findOne().lean() as Record<string, unknown> | null
+  const company = await Company.findOne({ dbName: authResult.session!.user.dbName }).lean() as Record<string, unknown> | null
   const cashierSettings = company?.cashierSettings as Record<string, unknown> | undefined
   const terminalUrl = (cashierSettings?.terminal as Record<string, unknown> | undefined)?.url as string | undefined
 
