@@ -67,6 +67,7 @@ const NAV: NavItem[] = [
     icon: Settings,
     children: [
       { label: 'Сотрудники', href: '/employees', icon: Users, roles: ['owner', 'admin'] },
+      { label: 'Ведомость', href: '/payroll', icon: DollarSign, roles: ['owner', 'admin'] },
       { label: 'Смены', href: '/shifts', icon: Clock, roles: ['owner', 'admin'] },
       { label: 'Права доступа', href: '/settings/permissions', icon: Shield, roles: ['owner', 'admin'] },
       { label: 'Уведомления', href: '/notifications', icon: Bell },

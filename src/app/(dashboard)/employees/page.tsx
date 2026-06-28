@@ -2,9 +2,20 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, User, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera, Eye, EyeOff, Copy, KeyRound } from 'lucide-react'
+import { Plus, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera, Eye, EyeOff, Copy, KeyRound } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
+import {
+  makeRule,
+  ruleLabel,
+  SOURCE_LABELS,
+  METHOD_LABELS,
+  PERCENT_SOURCES,
+  FIXED_ONLY_SOURCES,
+  type SalaryRule,
+  type SalarySource,
+  type SalaryMethod,
+} from '@/lib/salary'
 
 const ROLES = [
   { value: 'owner', label: 'Владелец', color: 'bg-purple-100 text-purple-700' },
@@ -30,7 +41,14 @@ interface Employee {
   avatar?: string
   isActive: boolean
   isEmailVerified: boolean
-  salary?: { type: string; value: number; hourlyRate?: number; overtimeMultiplier?: number; guaranteed: number }
+  salary?: {
+    type?: string
+    value?: number
+    hourlyRate?: number
+    overtimeMultiplier?: number
+    guaranteed?: number
+    rules?: SalaryRule[]
+  }
 }
 
 interface PayrollRecord {
@@ -64,6 +82,107 @@ function currentMonth(): string {
 
 type Tab = 'employees' | 'payroll'
 
+function FlexRuleRow({
+  rule,
+  onChange,
+  onRemove,
+  canRemove,
+}: {
+  rule: SalaryRule
+  onChange: (r: SalaryRule) => void
+  onRemove: () => void
+  canRemove: boolean
+}) {
+  const isFixedOnly = FIXED_ONLY_SOURCES.includes(rule.source)
+  const effectiveMethod: SalaryMethod = isFixedOnly ? 'fixed' : rule.method
+
+  function setSource(src: SalarySource) {
+    const newMethod: SalaryMethod = FIXED_ONLY_SOURCES.includes(src) ? 'fixed' : rule.method
+    onChange({ ...rule, source: src, method: newMethod, categories: src === 'services_category' ? (rule.categories ?? []) : undefined })
+  }
+
+  return (
+    <div className="border rounded-lg p-2.5 space-y-2 bg-muted/20">
+      <div className="flex items-center gap-2">
+        {/* Source */}
+        <select
+          value={rule.source}
+          onChange={e => setSource(e.target.value as SalarySource)}
+          className="flex-1 px-2 py-1.5 border rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+        >
+          {(Object.keys(SOURCE_LABELS) as SalarySource[]).map(s => (
+            <option key={s} value={s}>{SOURCE_LABELS[s]}</option>
+          ))}
+        </select>
+
+        {/* Method (shown only for percent sources) */}
+        {!isFixedOnly && (
+          <select
+            value={effectiveMethod}
+            onChange={e => onChange({ ...rule, method: e.target.value as SalaryMethod })}
+            className="flex-1 px-2 py-1.5 border rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+          >
+            {(Object.keys(METHOD_LABELS) as SalaryMethod[]).map(m => (
+              <option key={m} value={m}>{METHOD_LABELS[m]}</option>
+            ))}
+          </select>
+        )}
+
+        {/* Value */}
+        <div className="relative w-24 shrink-0">
+          <input
+            type="number"
+            value={rule.value}
+            onChange={e => onChange({ ...rule, value: +e.target.value })}
+            className="w-full px-2 py-1.5 pr-6 border rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-500"
+            min={0}
+            step={isFixedOnly || effectiveMethod === 'fixed' ? 100 : 0.5}
+          />
+          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+            {isFixedOnly || effectiveMethod === 'fixed' ? '₽' : '%'}
+          </span>
+        </div>
+
+        {/* Enabled toggle */}
+        <button
+          type="button"
+          onClick={() => onChange({ ...rule, enabled: !rule.enabled })}
+          className={cn('text-xs px-2 py-1.5 rounded-md border font-medium transition-colors shrink-0', rule.enabled ? 'bg-green-50 border-green-300 text-green-700' : 'bg-muted border-border text-muted-foreground')}
+          title={rule.enabled ? 'Отключить' : 'Включить'}
+        >
+          {rule.enabled ? 'Вкл' : 'Выкл'}
+        </button>
+
+        {/* Remove */}
+        {canRemove && (
+          <button type="button" onClick={onRemove} className="p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors shrink-0">
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Categories (for services_category) */}
+      {rule.source === 'services_category' && (
+        <div>
+          <input
+            type="text"
+            value={(rule.categories ?? []).join(', ')}
+            onChange={e => onChange({
+              ...rule,
+              categories: e.target.value.split(',').map(s => s.trim()).filter(Boolean),
+            })}
+            placeholder="Категории через запятую: Пайка, Замена стекла"
+            className="w-full px-2 py-1.5 border rounded-md text-xs outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      )}
+
+      {/* Human-readable label */}
+      <div className="text-xs text-muted-foreground">{ruleLabel(rule)}</div>
+    </div>
+  )
+}
+
 export default function EmployeesPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
@@ -75,6 +194,11 @@ export default function EmployeesPage() {
   const [error, setError] = useState('')
   const [payrollMonth, setPayrollMonth] = useState<string>(currentMonth)
   const [payoutForm, setPayoutForm] = useState<{ userId: string; recordId: string; amount: number; notes: string } | null>(null)
+
+  // Flex salary state
+  const [salaryMode, setSalaryMode] = useState<'legacy' | 'flex'>('legacy')
+  const [flexGuaranteed, setFlexGuaranteed] = useState(0)
+  const [flexRules, setFlexRules] = useState<SalaryRule[]>([makeRule()])
 
   // Password setup state
   const [accessMode, setAccessMode] = useState<'email' | 'manual'>('email')
@@ -154,6 +278,9 @@ export default function EmployeesPage() {
     setEditItem(null)
     setForm(EMPTY_FORM)
     setError('')
+    setSalaryMode('legacy')
+    setFlexGuaranteed(0)
+    setFlexRules([makeRule()])
     setAccessMode('email')
     setManualPw('')
     setManualPwConfirm('')
@@ -163,7 +290,26 @@ export default function EmployeesPage() {
 
   function openEdit(e: Employee) {
     setEditItem(e)
-    setForm({ name: e.name, email: e.email, role: e.role, phone: e.phone ?? '', salary: { type: e.salary?.type ?? 'percent_revenue', value: e.salary?.value ?? 20, hourlyRate: e.salary?.hourlyRate ?? 0, overtimeMultiplier: e.salary?.overtimeMultiplier ?? 1, guaranteed: e.salary?.guaranteed ?? 0 } })
+    const hasFlex = Array.isArray(e.salary?.rules) && e.salary!.rules!.length > 0
+    if (hasFlex) {
+      setSalaryMode('flex')
+      setFlexGuaranteed(e.salary?.guaranteed ?? 0)
+      setFlexRules(e.salary!.rules!)
+    } else {
+      setSalaryMode('legacy')
+      setFlexGuaranteed(0)
+      setFlexRules([makeRule()])
+    }
+    setForm({
+      name: e.name, email: e.email, role: e.role, phone: e.phone ?? '',
+      salary: {
+        type: e.salary?.type ?? 'percent_revenue',
+        value: e.salary?.value ?? 20,
+        hourlyRate: e.salary?.hourlyRate ?? 0,
+        overtimeMultiplier: e.salary?.overtimeMultiplier ?? 1,
+        guaranteed: e.salary?.guaranteed ?? 0,
+      },
+    })
     setError('')
     setShowForm(true)
   }
@@ -182,11 +328,16 @@ export default function EmployeesPage() {
     const url = editItem ? `/api/employees/${editItem._id}` : '/api/employees'
     const method = editItem ? 'PATCH' : 'POST'
 
+    const salaryPayload = salaryMode === 'flex'
+      ? { guaranteed: flexGuaranteed, rules: flexRules }
+      : form.salary
+
+    const basePayload = { ...form, salary: salaryPayload }
     const payload = editItem
-      ? form
+      ? basePayload
       : accessMode === 'manual'
-        ? { ...form, password: manualPw }
-        : form
+        ? { ...basePayload, password: manualPw }
+        : basePayload
 
     const res = await fetch(url, {
       method,
@@ -281,9 +432,13 @@ export default function EmployeesPage() {
 
   function salaryLabel(salary?: Employee['salary']) {
     if (!salary) return '—'
+    if (Array.isArray(salary.rules) && salary.rules.length > 0) {
+      return `Гибкая (${salary.rules.length} правил${salary.rules.length === 1 ? 'о' : salary.rules.length < 5 ? 'а' : ''})`
+    }
+    if (!salary.type) return '—'
     const type = SALARY_TYPES.find(t => t.value === salary.type)?.label ?? salary.type
     if (salary.type === 'hourly') return `${type}: ${salary.hourlyRate ?? salary.value} ₽/ч`
-    const suffix = salary.type.includes('percent') ? '%' : ' ₽'
+    const suffix = salary.type?.includes('percent') ? '%' : ' ₽'
     return `${type}: ${salary.value}${suffix}`
   }
 
@@ -358,7 +513,7 @@ export default function EmployeesPage() {
                   {emp.salary && (
                     <div className="bg-muted/50 rounded-lg p-2.5 text-xs mb-3">
                       <div className="font-medium text-muted-foreground mb-0.5">Зарплата</div>
-                      <div>{SALARY_TYPES.find(t => t.value === emp.salary?.type)?.label}: {emp.salary.value}{emp.salary.type.includes('percent') ? '%' : ' ₽'}</div>
+                      <div>{salaryLabel(emp.salary)}</div>
                     </div>
                   )}
 
@@ -645,43 +800,123 @@ export default function EmployeesPage() {
                   ))}
                 </select>
               </div>
-              <div className="border rounded-lg p-3">
-                <div className="text-sm font-medium mb-2">Зарплата и мотивация</div>
-                <div className="space-y-2">
-                  <select value={form.salary.type} onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, type: e.target.value } }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
-                    {SALARY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                  <div className="flex gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs text-muted-foreground mb-0.5">
-                        {form.salary.type === 'hourly' ? 'Ставка (₽/ч)' : form.salary.type.includes('percent') ? 'Процент' : 'Сумма'}
-                      </label>
-                      <input type="number" value={form.salary.type === 'hourly' ? (form.salary.hourlyRate ?? 0) : form.salary.value}
-                        onChange={e => setForm(p => ({
-                          ...p,
-                          salary: p.salary.type === 'hourly'
-                            ? { ...p.salary, hourlyRate: +e.target.value }
-                            : { ...p.salary, value: +e.target.value }
-                        }))}
-                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={0} />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-muted-foreground mb-0.5">Гарантированный мин.</label>
-                      <input type="number" value={form.salary.guaranteed ?? 0} onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, guaranteed: +e.target.value } }))}
-                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={0} />
-                    </div>
+              {/* Salary section */}
+              <div className="border rounded-lg p-3 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-medium">Зарплата и мотивация</div>
+                  <div className="flex bg-muted rounded-lg p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSalaryMode('legacy')}
+                      className={cn('px-2.5 py-1 rounded-md font-medium transition-colors', salaryMode === 'legacy' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    >
+                      Простая
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSalaryMode('flex')}
+                      className={cn('px-2.5 py-1 rounded-md font-medium transition-colors', salaryMode === 'flex' ? 'bg-background shadow-sm text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                    >
+                      Гибкая
+                    </button>
                   </div>
-                  {form.salary.type === 'hourly' && (
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-0.5">Коэффициент сверхурочных (напр. 1.5)</label>
-                      <input type="number" value={form.salary.overtimeMultiplier ?? 1}
-                        onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, overtimeMultiplier: +e.target.value } }))}
-                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
-                        min={1} step={0.1} />
-                    </div>
-                  )}
                 </div>
+
+                {/* Legacy mode */}
+                {salaryMode === 'legacy' && (
+                  <div className="space-y-2">
+                    <select value={form.salary.type} onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, type: e.target.value } }))}
+                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
+                      {SALARY_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <label className="block text-xs text-muted-foreground mb-0.5">
+                          {form.salary.type === 'hourly' ? 'Ставка (₽/ч)' : form.salary.type?.includes('percent') ? 'Процент' : 'Сумма'}
+                        </label>
+                        <input
+                          type="number"
+                          value={form.salary.type === 'hourly' ? (form.salary.hourlyRate ?? 0) : form.salary.value}
+                          onChange={e => setForm(p => ({
+                            ...p,
+                            salary: p.salary.type === 'hourly'
+                              ? { ...p.salary, hourlyRate: +e.target.value }
+                              : { ...p.salary, value: +e.target.value },
+                          }))}
+                          className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          min={0}
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <label className="block text-xs text-muted-foreground mb-0.5">Гарантированный мин.</label>
+                        <input
+                          type="number"
+                          value={form.salary.guaranteed ?? 0}
+                          onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, guaranteed: +e.target.value } }))}
+                          className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                    {form.salary.type === 'hourly' && (
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-0.5">Коэффициент сверхурочных (напр. 1.5)</label>
+                        <input
+                          type="number"
+                          value={form.salary.overtimeMultiplier ?? 1}
+                          onChange={e => setForm(p => ({ ...p, salary: { ...p.salary, overtimeMultiplier: +e.target.value } }))}
+                          className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                          min={1} step={0.1}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Flex mode */}
+                {salaryMode === 'flex' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-muted-foreground mb-0.5">Гарантированный минимум ₽</label>
+                      <input
+                        type="number"
+                        value={flexGuaranteed}
+                        onChange={e => setFlexGuaranteed(+e.target.value)}
+                        className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                        min={0}
+                        placeholder="0"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">Правила начисления</div>
+                      {flexRules.map((rule, idx) => (
+                        <FlexRuleRow
+                          key={rule.id}
+                          rule={rule}
+                          onChange={updated => setFlexRules(prev => prev.map((r, i) => i === idx ? updated : r))}
+                          onRemove={() => setFlexRules(prev => prev.filter((_, i) => i !== idx))}
+                          canRemove={flexRules.length > 1}
+                        />
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setFlexRules(prev => [...prev, makeRule()])}
+                      className="w-full py-1.5 border border-dashed border-blue-300 text-blue-600 text-xs rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Добавить правило
+                    </button>
+
+                    {flexRules.length > 0 && (
+                      <div className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-2">
+                        Итог = сумма всех правил. Если меньше гарантированного — выплачивается гарантированный минимум.
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {!editItem && (
                 <div className="border rounded-xl overflow-hidden">

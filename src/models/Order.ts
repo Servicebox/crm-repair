@@ -164,6 +164,7 @@ const OrderSchema = new Schema<IOrder>(
         {
           serviceId: { type: Schema.Types.ObjectId, ref: 'Service' },
           name: String,
+          category: String,  // stored for category-based salary rules
           price: Number,
           discount: { type: Number, default: 0 },
           duration: Number,

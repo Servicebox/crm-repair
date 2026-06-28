@@ -40,12 +40,23 @@ export interface IUser extends Document {
   passwordResetExpires?: Date
   isActive: boolean
   salary?: {
-    type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
-    value: number
+    // Legacy fields (backward compat)
+    type?: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
+    value?: number
     hourlyRate?: number
     overtimeMultiplier?: number
     salesPercent?: number
+    // Shared
     guaranteed?: number
+    // Flexible rules system (new)
+    rules?: Array<{
+      id: string
+      source: 'services_all' | 'services_category' | 'parts_all' | 'order_intake' | 'shift' | 'hourly'
+      categories?: string[]
+      method: 'percent_revenue' | 'percent_profit' | 'fixed'
+      value: number
+      enabled: boolean
+    }>
   }
   permissions?: IUserPermissions
   createdAt: Date
@@ -74,6 +85,7 @@ const UserSchema = new Schema<IUser>(
     passwordResetExpires: { type: Date },
     isActive: { type: Boolean, default: true },
     salary: {
+      // Legacy fields kept for backward compat
       type: {
         type: String,
         enum: ['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly'],
@@ -82,7 +94,9 @@ const UserSchema = new Schema<IUser>(
       hourlyRate: Number,
       overtimeMultiplier: Number,
       salesPercent: Number,
-      guaranteed: Number,
+      guaranteed: { type: Number, default: 0 },
+      // Flexible rules array
+      rules: { type: Schema.Types.Mixed, default: undefined },
     },
     permissions: {
       canViewAllOrders: { type: Boolean, default: false },

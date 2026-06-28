@@ -3,6 +3,30 @@ import { z } from 'zod'
 import mongoose from 'mongoose'
 import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 
+const SalaryRuleSchema = z.object({
+  id: z.string(),
+  source: z.enum(['services_all', 'services_category', 'parts_all', 'order_intake', 'shift', 'hourly']),
+  categories: z.array(z.string()).optional(),
+  method: z.enum(['percent_revenue', 'percent_profit', 'fixed']),
+  value: z.number().min(0),
+  enabled: z.boolean(),
+})
+
+const SalarySchema = z.union([
+  z.object({
+    guaranteed: z.number().min(0),
+    rules: z.array(SalaryRuleSchema).min(1),
+  }),
+  z.object({
+    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
+    value: z.number(),
+    hourlyRate: z.number().optional(),
+    overtimeMultiplier: z.number().optional(),
+    salesPercent: z.number().optional(),
+    guaranteed: z.number().optional(),
+  }),
+])
+
 const UpdateEmployeeSchema = z.object({
   name: z.string().min(1).optional(),
   phone: z.string().optional(),
@@ -10,14 +34,7 @@ const UpdateEmployeeSchema = z.object({
   isActive: z.boolean().optional(),
   locationId: z.string().optional(),
   avatar: z.string().optional(),
-  salary: z.object({
-    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
-    value: z.number(),
-    hourlyRate: z.number().optional(),
-    overtimeMultiplier: z.number().optional(),
-    salesPercent: z.number().optional(),
-    guaranteed: z.number().optional(),
-  }).optional(),
+  salary: SalarySchema.optional(),
   permissions: z.object({
     canViewAllOrders: z.boolean().optional(),
     canCreateOrders: z.boolean().optional(),

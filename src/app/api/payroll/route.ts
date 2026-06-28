@@ -2,39 +2,19 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import mongoose from 'mongoose'
+import {
+  isFlexSalary,
+  calcFlexEarnings,
+  calcLegacyEarnings,
+  type CalcOrder,
+  type FlexSalary,
+  type LegacySalary,
+} from '@/lib/salary'
 
 const PostSchema = z.object({
   month: z.string().regex(/^\d{4}-\d{2}$/),
   userId: z.string().optional(),
 })
-
-interface SalaryConfig {
-  type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
-  value: number
-  hourlyRate?: number
-  overtimeMultiplier?: number
-  guaranteed?: number
-}
-
-function calculateAccrued(
-  salary: SalaryConfig | undefined,
-  revenue: number,
-  profit: number,
-  ordersCount: number,
-  hoursWorked: number,
-): number {
-  if (!salary?.type) return 0
-  let base = 0
-  if (salary.type === 'percent_revenue') base = revenue * (salary.value / 100)
-  else if (salary.type === 'percent_profit') base = profit * (salary.value / 100)
-  else if (salary.type === 'fixed') base = salary.value
-  else if (salary.type === 'rate_per_order') base = ordersCount * salary.value
-  else if (salary.type === 'hourly') {
-    const rate = salary.hourlyRate ?? salary.value
-    base = hoursWorked * rate
-  }
-  return Math.max(base, salary.guaranteed ?? 0)
-}
 
 export async function GET(req: NextRequest) {
   const authResult = await requireTenantAuth()
@@ -91,12 +71,28 @@ export async function POST(req: NextRequest) {
     return err('Неверный идентификатор сотрудника', 400)
   }
 
+  const userSalary = user.salary as Record<string, unknown> | undefined
+  const useFlexMode = isFlexSalary(userSalary as FlexSalary | LegacySalary | null | undefined)
+
+  // Для flex-режима запрашиваем все заказы, где сотрудник мог участвовать
+  const orderQuery = useFlexMode
+    ? {
+        status: 'issued',
+        createdAt: { $gte: startDate, $lt: endDate },
+        $or: [
+          { masterId },
+          { receivedById: masterId },
+          { 'works.masterId': masterId },
+        ],
+      }
+    : {
+        masterId,
+        status: 'issued',
+        createdAt: { $gte: startDate, $lt: endDate },
+      }
+
   const [orders, shifts] = await Promise.all([
-    Order.find({
-      masterId,
-      status: 'issued',
-      createdAt: { $gte: startDate, $lt: endDate },
-    }).lean(),
+    Order.find(orderQuery).lean(),
     Shift.find({
       userId: masterId,
       status: 'closed',
@@ -104,55 +100,138 @@ export async function POST(req: NextRequest) {
     }).lean(),
   ])
 
-  const ordersCount = orders.length
-  type LeanWork = { price?: number; discount?: number; cost?: number }
+  type LeanWork = {
+    price?: number
+    discount?: number
+    cost?: number
+    category?: string
+    masterId?: mongoose.Types.ObjectId
+  }
   type LeanPart = { price?: number; quantity?: number; cost?: number }
   type LeanOrder = {
-    works?: LeanWork[];
-    parts?: LeanPart[];
-    discount?: number;
+    masterId?: mongoose.Types.ObjectId
+    receivedById?: mongoose.Types.ObjectId
+    works?: LeanWork[]
+    parts?: LeanPart[]
+    discount?: number
   }
   type LeanShift = { durationMinutes?: number }
 
-  const worksCount = (orders as LeanOrder[]).reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
+  const leanOrders = orders as LeanOrder[]
 
-  // Compute revenue and profit directly from works/parts arrays so that
-  // parts and services are always included regardless of stored finalCost
-  const revenue = (orders as LeanOrder[]).reduce((sum, o) => {
-    const worksRev = (o.works ?? []).reduce((s, w) => s + (w.price ?? 0) - (w.discount ?? 0), 0)
-    const partsRev = (o.parts ?? []).reduce((s, p) => s + (p.price ?? 0) * (p.quantity ?? 0), 0)
+  // Статистика считается только по заказам, где сотрудник — главный мастер
+  const masterOrders = leanOrders.filter(
+    o => o.masterId?.toString() === targetUserId,
+  )
+
+  const ordersCount = masterOrders.length
+  const worksCount = masterOrders.reduce((sum, o) => sum + (o.works?.length ?? 0), 0)
+
+  // Выручка работ и запчастей считается раздельно.
+  // worksRevenue — база для расчёта % зарплаты мастера (запчасти не входят).
+  const worksRevenue = masterOrders.reduce((sum, o) => {
+    const worksRev = (o.works ?? []).reduce(
+      (s, w) => s + (w.price ?? 0) - (w.discount ?? 0),
+      0,
+    )
+    return sum + worksRev
+  }, 0)
+
+  // Полная выручка для статистики (работы + запчасти − скидки)
+  const revenue = masterOrders.reduce((sum, o) => {
+    const worksRev = (o.works ?? []).reduce(
+      (s, w) => s + (w.price ?? 0) - (w.discount ?? 0),
+      0,
+    )
+    const partsRev = (o.parts ?? []).reduce(
+      (s, p) => s + (p.price ?? 0) * (p.quantity ?? 0),
+      0,
+    )
     return sum + worksRev + partsRev - (o.discount ?? 0)
   }, 0)
 
-  const profit = (orders as LeanOrder[]).reduce((sum, o) => {
-    const worksRev = (o.works ?? []).reduce((s, w) => s + (w.price ?? 0) - (w.discount ?? 0), 0)
-    const partsRev = (o.parts ?? []).reduce((s, p) => s + (p.price ?? 0) * (p.quantity ?? 0), 0)
-    const partsCost = (o.parts ?? []).reduce((s, p) => s + (p.cost ?? 0) * (p.quantity ?? 0), 0)
+  // Прибыль: выручка работ − себестоимость работ (запчасти не в базе)
+  const profit = masterOrders.reduce((sum, o) => {
+    const worksRev = (o.works ?? []).reduce(
+      (s, w) => s + (w.price ?? 0) - (w.discount ?? 0),
+      0,
+    )
     const worksCost = (o.works ?? []).reduce((s, w) => s + (w.cost ?? 0), 0)
-    const orderRevenue = worksRev + partsRev - (o.discount ?? 0)
-    return sum + Math.max(0, orderRevenue - partsCost - worksCost)
+    return sum + Math.max(0, worksRev - worksCost)
   }, 0)
 
-  const totalMinutes = (shifts as LeanShift[]).reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0)
+  const totalMinutes = (shifts as LeanShift[]).reduce(
+    (sum, s) => sum + (s.durationMinutes ?? 0),
+    0,
+  )
   const hoursWorked = Math.round((totalMinutes / 60) * 100) / 100
   const shiftsCount = shifts.length
 
-  const baseAccrued = calculateAccrued(
-    user.salary as SalaryConfig | undefined,
-    revenue,
-    profit,
-    ordersCount,
-    hoursWorked,
-  )
+  // ─── Расчёт начислений ────────────────────────────────────────────────────
 
-  // Preserve existing adjustments when recalculating
-  const existing = await PayrollRecord.findOne({
-    userId: masterId,
-    month,
-  })
+  let baseAccrued = 0
+  let breakdown: unknown = null
 
-  const bonusTotal = existing ? existing.bonuses.reduce((s: number, b: {amount: number}) => s + b.amount, 0) : 0
-  const deductionTotal = existing ? existing.deductions.reduce((s: number, d: {amount: number}) => s + d.amount, 0) : 0
+  if (useFlexMode) {
+    const calcOrders: CalcOrder[] = leanOrders.map(o => {
+      const isMainMaster = o.masterId?.toString() === targetUserId
+      const isIntake = o.receivedById?.toString() === targetUserId
+
+      // Работы: явно назначенные этому мастеру, либо без мастера в его заказах
+      const works = (o.works ?? [])
+        .filter(
+          w =>
+            w.masterId?.toString() === targetUserId ||
+            (!w.masterId && isMainMaster),
+        )
+        .map(w => ({
+          price: w.price ?? 0,
+          discount: w.discount ?? 0,
+          cost: w.cost ?? 0,
+          category: w.category,
+        }))
+
+      // Запчасти учитываются только в заказах, где мастер — главный исполнитель
+      const parts = isMainMaster
+        ? (o.parts ?? []).map(p => ({
+            price: p.price ?? 0,
+            quantity: p.quantity ?? 1,
+            cost: p.cost ?? 0,
+          }))
+        : []
+
+      return { works, parts, isIntake }
+    })
+
+    const result = calcFlexEarnings(
+      userSalary as unknown as FlexSalary,
+      calcOrders,
+      { shiftsCount, hoursWorked },
+    )
+    baseAccrued = result.total
+    breakdown = result.byRule
+  } else {
+    // Для legacy-режима % считается только от выручки работ, запчасти не входят
+    baseAccrued =
+      calcLegacyEarnings(
+        userSalary as unknown as LegacySalary,
+        worksRevenue,
+        profit,
+        hoursWorked,
+        ordersCount,
+      ) ?? 0
+  }
+
+  // Сохраняем существующие корректировки (бонусы/вычеты)
+  const existing = await PayrollRecord.findOne({ userId: masterId, month })
+
+  const bonusTotal = existing
+    ? existing.bonuses.reduce((s: number, b: { amount: number }) => s + b.amount, 0)
+    : 0
+  const deductionTotal = existing
+    ? existing.deductions.reduce((s: number, d: { amount: number }) => s + d.amount, 0)
+    : 0
+
   const accrued = Math.max(0, baseAccrued + bonusTotal - deductionTotal)
 
   const record = await PayrollRecord.findOneAndUpdate(
@@ -162,10 +241,12 @@ export async function POST(req: NextRequest) {
         ordersCount,
         worksCount,
         revenue,
+        worksRevenue,
         profit,
         hoursWorked,
         shiftsCount,
         accrued,
+        breakdown,
       },
       $setOnInsert: {
         paid: 0,
@@ -174,7 +255,7 @@ export async function POST(req: NextRequest) {
         deductions: [],
       },
     },
-    { upsert: true, new: true }
+    { upsert: true, new: true },
   )
 
   return ok(record)

@@ -4,14 +4,31 @@ import { requireTenantRole, ok, err } from '@/lib/api-helpers'
 import { sendVerificationEmail } from '@/lib/email'
 import crypto from 'crypto'
 
-const SalarySchema = z.object({
-  type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
-  value: z.number(),
-  hourlyRate: z.number().optional(),
-  overtimeMultiplier: z.number().optional(),
-  salesPercent: z.number().optional(),
-  guaranteed: z.number().optional(),
+const SalaryRuleSchema = z.object({
+  id: z.string(),
+  source: z.enum(['services_all', 'services_category', 'parts_all', 'order_intake', 'shift', 'hourly']),
+  categories: z.array(z.string()).optional(),
+  method: z.enum(['percent_revenue', 'percent_profit', 'fixed']),
+  value: z.number().min(0),
+  enabled: z.boolean(),
 })
+
+const SalarySchema = z.union([
+  // Гибкая схема (flex)
+  z.object({
+    guaranteed: z.number().min(0),
+    rules: z.array(SalaryRuleSchema).min(1),
+  }),
+  // Устаревшая схема (legacy — обратная совместимость)
+  z.object({
+    type: z.enum(['percent_revenue', 'percent_profit', 'fixed', 'rate_per_order', 'hourly']),
+    value: z.number(),
+    hourlyRate: z.number().optional(),
+    overtimeMultiplier: z.number().optional(),
+    salesPercent: z.number().optional(),
+    guaranteed: z.number().optional(),
+  }),
+])
 
 const CreateEmployeeSchema = z.object({
   name: z.string().min(1),

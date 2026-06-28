@@ -14,7 +14,8 @@ export interface IPayrollRecord extends Document {
   month: string // 'YYYY-MM'
   ordersCount: number
   worksCount: number
-  revenue: number
+  revenue: number       // полная выручка (работы + запчасти)
+  worksRevenue: number  // выручка только по работам (база для % зарплаты)
   profit: number
   hoursWorked: number
   shiftsCount: number
@@ -25,6 +26,8 @@ export interface IPayrollRecord extends Document {
   notes?: string
   bonuses: IPayrollAdjustment[]
   deductions: IPayrollAdjustment[]
+  /** Разбивка начисления по правилам (только для FlexSalary) */
+  breakdown?: unknown
   createdAt: Date
   updatedAt: Date
 }
@@ -46,6 +49,7 @@ const PayrollRecordSchema = new Schema<IPayrollRecord>(
     ordersCount: { type: Number, default: 0 },
     worksCount: { type: Number, default: 0 },
     revenue: { type: Number, default: 0 },
+    worksRevenue: { type: Number, default: 0 },
     profit: { type: Number, default: 0 },
     hoursWorked: { type: Number, default: 0 },
     shiftsCount: { type: Number, default: 0 },
@@ -56,6 +60,7 @@ const PayrollRecordSchema = new Schema<IPayrollRecord>(
     notes: { type: String },
     bonuses: { type: [AdjustmentSchema], default: [] },
     deductions: { type: [AdjustmentSchema], default: [] },
+    breakdown: { type: Schema.Types.Mixed },
   },
   { timestamps: true }
 )

@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { DollarSign, RefreshCw, AlertTriangle, Loader2, TrendingUp, ClipboardList, Banknote } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { cn } from '@/lib/utils'
+import { SOURCE_LABELS, METHOD_LABELS, type RuleResult } from '@/lib/salary'
 
 interface PayrollRecord {
   _id: string
@@ -13,18 +14,21 @@ interface PayrollRecord {
   ordersCount: number
   worksCount: number
   revenue: number
+  worksRevenue: number
   profit: number
   accrued: number
   paid: number
   status: 'pending' | 'paid'
   paidAt?: string
   notes?: string
+  breakdown?: RuleResult[]
 }
 
 interface SalaryConfig {
-  type: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order'
-  value: number
+  type?: 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order'
+  value?: number
   guaranteed?: number
+  rules?: unknown[]
 }
 
 interface UserWithSalary {
@@ -52,6 +56,10 @@ function formatMonth(month: string): string {
 }
 
 function salarySchemeLabel(salary: SalaryConfig): string {
+  if (Array.isArray(salary.rules) && salary.rules.length > 0) {
+    return `Гибкая схема (${salary.rules.length} правил${salary.rules.length === 1 ? 'о' : salary.rules.length < 5 ? 'а' : ''})`
+  }
+  if (!salary.type || salary.value == null) return 'Не задана'
   const typeLabel = SALARY_LABELS[salary.type] ?? salary.type
   if (salary.type === 'percent_revenue' || salary.type === 'percent_profit') {
     return `${salary.value}% ${salary.type === 'percent_revenue' ? 'от выручки' : 'от прибыли'}`
@@ -69,7 +77,8 @@ const DEMO_RECORD: PayrollRecord = {
   ordersCount: 18,
   worksCount: 24,
   revenue: 122500,
-  profit: 84000,
+  worksRevenue: 95000,
+  profit: 68000,
   accrued: 24500,
   paid: 0,
   status: 'pending',
@@ -212,19 +221,19 @@ export default function MyEarningsPage() {
             <div className="bg-card border rounded-xl p-4">
               <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1.5">
                 <TrendingUp className="w-3.5 h-3.5" />
-                Выручка
+                Выручка работ
               </div>
-              <div className="text-2xl font-bold">{formatCurrency(display.revenue)}</div>
-              <div className="text-xs text-muted-foreground mt-1">по оценочной стоимости</div>
+              <div className="text-2xl font-bold">{formatCurrency(display.worksRevenue ?? display.revenue)}</div>
+              <div className="text-xs text-muted-foreground mt-1">база для % (без запчастей)</div>
             </div>
 
             <div className="bg-card border rounded-xl p-4">
               <div className="flex items-center gap-2 text-muted-foreground text-xs mb-1.5">
                 <Banknote className="w-3.5 h-3.5" />
-                Прибыль (база)
+                Прибыль от работ
               </div>
               <div className="text-2xl font-bold">{formatCurrency(display.profit)}</div>
-              <div className="text-xs text-muted-foreground mt-1">за вычетом з/ч</div>
+              <div className="text-xs text-muted-foreground mt-1">за вычетом себестоимости</div>
             </div>
           </div>
 
@@ -237,6 +246,42 @@ export default function MyEarningsPage() {
                 {display.paidAt ? ` · ${new Date(display.paidAt).toLocaleDateString('ru-RU')}` : ''}
                 {display.notes ? ` · ${display.notes}` : ''}
               </span>
+            </div>
+          )}
+
+          {/* Breakdown by rules (flex salary) */}
+          {record?.breakdown && record.breakdown.length > 0 && (
+            <div className="mb-5">
+              <h2 className="text-sm font-semibold mb-2">Разбивка по правилам</h2>
+              <div className="border rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50 text-left">
+                      <th className="px-3 py-2 text-xs font-medium text-muted-foreground">Правило</th>
+                      <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">База</th>
+                      <th className="px-3 py-2 text-xs font-medium text-muted-foreground text-right">Начислено</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {record.breakdown.map(row => (
+                      <tr key={row.ruleId}>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-xs">{SOURCE_LABELS[row.source]}</div>
+                          <div className="text-xs text-muted-foreground">{METHOD_LABELS[row.method]}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right text-xs text-muted-foreground">
+                          {row.method === 'fixed'
+                            ? `${row.base} шт.`
+                            : formatCurrency(row.base)}
+                        </td>
+                        <td className={cn('px-3 py-2 text-right text-sm font-semibold', row.amount > 0 ? 'text-green-600' : 'text-muted-foreground')}>
+                          {formatCurrency(row.amount)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 

@@ -54,11 +54,24 @@ export async function GET(req: NextRequest) {
   const locationId = searchParams.get('locationId')
   const type = searchParams.get('type')
 
+  const dateFrom = searchParams.get('dateFrom')
+  const dateTo = searchParams.get('dateTo')
+
   const filter: Record<string, unknown> = {}
   if (status && status !== 'all') filter.status = status
   if (masterId) filter.masterId = masterId
   if (locationId) filter.locationId = locationId
   if (type) filter.type = type
+  if (dateFrom || dateTo) {
+    const range: Record<string, Date> = {}
+    if (dateFrom) range.$gte = new Date(dateFrom)
+    if (dateTo) {
+      const end = new Date(dateTo)
+      end.setDate(end.getDate() + 1)
+      range.$lte = end
+    }
+    filter.createdAt = range
+  }
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     filter.$or = [

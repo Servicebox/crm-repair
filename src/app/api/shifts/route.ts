@@ -6,6 +6,7 @@ import { requireTenantRole, requireTenantAuth, ok, err } from '@/lib/api-helpers
 const OpenShiftSchema = z.object({
   userId: z.string().min(1),
   notes: z.string().optional(),
+  openCashAmount: z.number().min(0).default(0),
 })
 
 export async function GET(req: NextRequest) {
@@ -77,6 +78,8 @@ export async function POST(req: NextRequest) {
     openedAt: new Date(),
     status: 'open',
     notes: parsed.data.notes,
+    openCashAmount: parsed.data.openCashAmount,
+    cashWithdrawals: [],
   })
 
   return ok(shift, 201)

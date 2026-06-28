@@ -16,6 +16,7 @@ interface ServiceHit {
 
 export interface WorkEntry {
   name: string
+  category?: string
   price: number
   discount?: number
   duration?: number
@@ -86,11 +87,14 @@ export default function WorkModal({
     return () => document.removeEventListener('mousedown', onOutside)
   }, [])
 
+  const [category, setCategory] = useState(initialValues?.category ?? '')
+
   function fillFromService(svc: ServiceHit) {
     setName(svc.name)
     setPrice(String(svc.price))
     if (svc.cost) setCost(String(svc.cost))
     if (svc.duration) setDuration(String(svc.duration))
+    if (svc.category) setCategory(svc.category)
     setSearchQuery(svc.name)
     setShowDropdown(false)
   }
