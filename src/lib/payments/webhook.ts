@@ -2,63 +2,19 @@ import { connectToDatabase } from '@/lib/mongodb'
 import Company from '@/models/Company'
 import Subscription from '@/models/Subscription'
 import Payment from '@/models/Payment'
+import { verifyPaymentWithYookassa, YookassaPaymentObject } from './yookassa'
+
+export { verifyPaymentWithYookassa }
+export type { YookassaPaymentObject }
 
 const GRACE_PERIOD_MS = 3 * 24 * 60 * 60 * 1000
 
 // ── Типы ─────────────────────────────────────────────────────────────────────
 
-export interface YookassaPaymentObject {
-  id: string
-  status: 'pending' | 'waiting_for_capture' | 'succeeded' | 'canceled'
-  amount: { value: string; currency: 'RUB' }
-  payment_method?: { id: string; type: string; saved: boolean }
-  metadata?: {
-    companyId?: string
-    subscriptionId?: string
-    internalPaymentId?: string
-    planSlug?: string
-    billingPeriod?: 'monthly' | 'yearly'
-  }
-}
-
 export interface YookassaWebhookPayload {
   type: 'notification'
   event: string
   object: YookassaPaymentObject
-}
-
-// ── Верификация через обратный GET-запрос к YooKassa API ──────────────────────
-
-export async function verifyPaymentWithYookassa(
-  paymentId: string,
-  claimedStatus: string
-): Promise<boolean> {
-  const shopId = process.env.YOOKASSA_SHOP_ID
-  const secretKey = process.env.YOOKASSA_SECRET_KEY
-  if (!shopId || !secretKey) {
-    console.error('[webhook] YOOKASSA credentials not set')
-    return false
-  }
-
-  try {
-    const response = await fetch(
-      `https://api.yookassa.ru/v3/payments/${paymentId}`,
-      {
-        headers: {
-          Authorization: 'Basic ' + Buffer.from(`${shopId}:${secretKey}`).toString('base64'),
-        },
-      }
-    )
-    if (!response.ok) {
-      console.error('[webhook] YooKassa API error:', response.status)
-      return false
-    }
-    const data = await response.json() as { id: string; status: string }
-    return data.id === paymentId && data.status === claimedStatus
-  } catch (err) {
-    console.error('[webhook] verifyPayment fetch error:', err)
-    return false
-  }
 }
 
 // ── payment.succeeded ─────────────────────────────────────────────────────────
@@ -127,7 +83,7 @@ export async function handlePaymentCanceled(obj: YookassaPaymentObject): Promise
     console.warn('[webhook] unknown payment (canceled):', obj.id)
     return
   }
-  if (payment.status === 'failed' || payment.status === 'cancelled') {
+  if (payment.status === 'failed') {
     console.log('[webhook] already processed (canceled):', obj.id)
     return
   }
