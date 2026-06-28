@@ -42,9 +42,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (rawCompanyId) {
           session.user.companyId = rawCompanyId
           const company = await Company.findById(rawCompanyId)
-            .select('dbName')
-            .lean() as { dbName?: string } | null
+            .select('dbName subscriptionStatus pastDueUntil')
+            .lean() as { dbName?: string; subscriptionStatus?: string; pastDueUntil?: Date } | null
           session.user.dbName = company?.dbName ?? getDefaultDbName()
+          session.user.subscriptionStatus = company?.subscriptionStatus ?? 'trial'
+          if (company?.pastDueUntil) {
+            session.user.pastDueUntil = company.pastDueUntil
+          }
         } else {
           // Super-admin / platform owner — no company assignment.
           // Use the main platform DB; do NOT pick a random tenant.

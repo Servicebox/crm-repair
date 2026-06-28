@@ -28,6 +28,7 @@ export const authConfig: NextAuthConfig = {
         // role is intentionally NOT cached — stale role is a privilege-escalation risk.
         token.companyId = user.companyId ?? ''
         token.dbName = user.dbName ?? ''
+        token.subscriptionStatus = (user as { subscriptionStatus?: string }).subscriptionStatus ?? 'trial'
       }
       return token
     },
@@ -37,6 +38,9 @@ export const authConfig: NextAuthConfig = {
       // which performs a fresh DB lookup on every session reconstruction.
       if (token?.id && session.user) {
         session.user.id = token.id as string
+        if (token.subscriptionStatus) {
+          session.user.subscriptionStatus = token.subscriptionStatus as string
+        }
       }
       return session
     },

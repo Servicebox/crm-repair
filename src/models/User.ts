@@ -1,7 +1,7 @@
 import mongoose, { Document, Model, Schema } from 'mongoose'
 import bcrypt from 'bcryptjs'
 
-export type UserRole = 'owner' | 'admin' | 'manager' | 'master'
+export type UserRole = 'owner' | 'admin' | 'manager' | 'master' | 'super_admin'
 
 export interface IUserPermissions {
   canViewAllOrders: boolean
@@ -71,7 +71,7 @@ const UserSchema = new Schema<IUser>(
     password: { type: String, required: true, minlength: 6 },
     role: {
       type: String,
-      enum: ['owner', 'admin', 'manager', 'master'],
+      enum: ['owner', 'admin', 'manager', 'master', 'super_admin'],
       default: 'master',
     },
     companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
