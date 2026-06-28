@@ -24,6 +24,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // If it fails, the user still gets a working session from their last login.
       if (token.companyId !== undefined) session.user.companyId = token.companyId as string
       if (token.dbName) session.user.dbName = token.dbName as string
+      if (token.subscriptionStatus) session.user.subscriptionStatus = token.subscriptionStatus as string
 
       try {
         await connectToDatabase()
