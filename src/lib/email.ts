@@ -157,32 +157,36 @@ const BILLING_EMAIL_TEMPLATES: Record<
 export async function sendSubscriptionEmail(
   email: string,
   type: BillingEmailType,
-  data: { name: string }
+  data?: Record<string, string>
 ): Promise<void> {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.AUTH_URL ||
-    process.env.NEXTAUTH_URL ||
-    'http://localhost:3000'
+  try {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ||
+      process.env.AUTH_URL ||
+      process.env.NEXTAUTH_URL ||
+      'http://localhost:3000'
 
-  const tmpl = BILLING_EMAIL_TEMPLATES[type]
-  const ctaHtml = tmpl.cta
-    ? `<a href="${baseUrl}${tmpl.cta.path}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-top:16px">${tmpl.cta.text}</a>`
-    : ''
+    const tmpl = BILLING_EMAIL_TEMPLATES[type]
+    const ctaHtml = tmpl.cta
+      ? `<a href="${baseUrl}${tmpl.cta.path}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-top:16px">${tmpl.cta.text}</a>`
+      : ''
 
-  const transporter = createTransporter()
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || process.env.SMTP_USER,
-    to: email,
-    subject: tmpl.subject,
-    html: `
-      <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
-        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">${tmpl.heading}</h1>
-        <p style="color:#64748b;margin:0 0 4px">Здравствуйте, ${escapeHtml(data.name)}!</p>
-        <p style="color:#475569;margin:0 0 8px">${tmpl.body}</p>
-        ${ctaHtml}
-        <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">ServiceBox CRM</p>
-      </div>
-    `,
-  })
+    const transporter = createTransporter()
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: email,
+      subject: tmpl.subject,
+      html: `
+        <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
+          <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">${tmpl.heading}</h1>
+          <p style="color:#64748b;margin:0 0 4px">Здравствуйте, ${escapeHtml(data?.['name'] ?? '')}!</p>
+          <p style="color:#475569;margin:0 0 8px">${tmpl.body}</p>
+          ${ctaHtml}
+          <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">ServiceBox CRM</p>
+        </div>
+      `,
+    })
+  } catch (error) {
+    console.error('Failed to send subscription email:', error)
+  }
 }
