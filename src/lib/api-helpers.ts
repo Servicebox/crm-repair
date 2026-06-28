@@ -2,6 +2,8 @@ import { auth } from '@/auth'
 import { NextResponse } from 'next/server'
 import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
 import { getModels } from '@/lib/models'
+import Company from '@/models/Company'
+import mongoose from 'mongoose'
 
 export async function requireAuth() {
   const session = await auth()
@@ -30,6 +32,17 @@ export async function requireTenantAuth() {
   if (!session.user.role) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
   }
+  // Свежая проверка статуса подписки из БД (не JWT-кэш)
+  if (session.user.companyId) {
+    const company = await Company.findById(session.user.companyId)
+      .select('subscriptionStatus pastDueUntil')
+      .lean() as { subscriptionStatus?: string; pastDueUntil?: Date } | null
+
+    const status = company?.subscriptionStatus
+    if (status === 'blocked') {
+      return { error: NextResponse.json({ error: 'SUBSCRIPTION_BLOCKED' }, { status: 402 }) }
+    }
+  }
   const dbName = session.user.dbName || getDefaultDbName()
   const db = await getTenantConnection(dbName)
   const models = getModels(db)
@@ -43,6 +56,17 @@ export async function requireTenantRole(roles: string[]) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
   return result
+}
+
+export async function requireSuperAdmin() {
+  const session = await auth()
+  if (!session?.user?.id) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  if (session.user.role !== 'super_admin') {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+  return { session }
 }
 
 export function ok<T>(data: T, status = 200) {

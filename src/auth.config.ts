@@ -17,7 +17,17 @@ export const authConfig: NextAuthConfig = {
       const isPublicApi = PUBLIC_API.some(p => nextUrl.pathname.startsWith(p))
 
       if (isPublicPath || isPublicApi) return true
-      if (isLoggedIn) return true
+      if (isLoggedIn) {
+        const ALLOWED_BLOCKED = ['/blocked', '/billing', '/api/auth', '/api/webhooks']
+        const status = (auth?.user as { subscriptionStatus?: string })?.subscriptionStatus
+        if (
+          status === 'blocked' &&
+          !ALLOWED_BLOCKED.some(p => nextUrl.pathname.startsWith(p))
+        ) {
+          return Response.redirect(new URL('/blocked', nextUrl))
+        }
+        return true
+      }
       return false
     },
     jwt({ token, user }) {
