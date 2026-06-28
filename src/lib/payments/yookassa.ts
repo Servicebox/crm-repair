@@ -182,42 +182,47 @@ export async function initiateRenewalPayment(subscription: {
 
   const idempotenceKey = `renewal-${String(subscription._id)}-${String(internalPayment._id)}`
 
-  const response = await fetch(`${YOOKASSA_BASE_URL}/payments`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Idempotence-Key': idempotenceKey,
-      Authorization: getBasicAuth(),
-    },
-    body: JSON.stringify({
-      amount: { value: (finalAmount / 100).toFixed(2), currency: 'RUB' },
-      payment_method_id: subscription.savedPaymentMethodId,
-      capture: true,
-      description: `Продление ${plan.name}`,
-      metadata: {
-        companyId: String(subscription.companyId),
-        subscriptionId: String(subscription._id),
-        internalPaymentId: String(internalPayment._id),
-        planSlug: subscription.planSlug,
-        billingPeriod: subscription.billingPeriod,
+  try {
+    const response = await fetch(`${YOOKASSA_BASE_URL}/payments`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Idempotence-Key': idempotenceKey,
+        Authorization: getBasicAuth(),
       },
-    }),
-  })
+      body: JSON.stringify({
+        amount: { value: (finalAmount / 100).toFixed(2), currency: 'RUB' },
+        payment_method_id: subscription.savedPaymentMethodId,
+        capture: true,
+        description: `Продление ${plan.name}`,
+        metadata: {
+          companyId: String(subscription.companyId),
+          subscriptionId: String(subscription._id),
+          internalPaymentId: String(internalPayment._id),
+          planSlug: subscription.planSlug,
+          billingPeriod: subscription.billingPeriod,
+        },
+      }),
+    })
 
-  if (!response.ok) {
-    const errText = await response.text()
+    if (!response.ok) {
+      const errText = await response.text()
+      await Payment.updateOne({ _id: internalPayment._id }, { $set: { status: 'failed' } })
+      throw new Error(`YooKassa ${response.status}: ${errText}`)
+    }
+
+    const data = (await response.json()) as { id: string; status: string }
+
+    await Payment.updateOne(
+      { _id: internalPayment._id },
+      { $set: { yookassaPaymentId: data.id } }
+    )
+
+    return { paymentId: data.id, status: data.status }
+  } catch (error) {
     await Payment.updateOne({ _id: internalPayment._id }, { $set: { status: 'failed' } })
-    throw new Error(`YooKassa ${response.status}: ${errText}`)
+    throw error
   }
-
-  const data = (await response.json()) as { id: string; status: string }
-
-  await Payment.updateOne(
-    { _id: internalPayment._id },
-    { $set: { yookassaPaymentId: data.id } }
-  )
-
-  return { paymentId: data.id, status: data.status }
 }
 
 // ── Верификация платежа через YooKassa ────────────────────────────────────────
