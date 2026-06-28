@@ -21,6 +21,12 @@ export interface ICompany extends Document {
   slug: string
   dbName: string
   isActive: boolean
+  subscriptionStatus: 'trial' | 'active' | 'past_due' | 'blocked' | 'free'
+  subscriptionPlan?: string
+  subscriptionEndDate?: Date
+  trialEndDate?: Date
+  pastDueUntil?: Date
+  discountPercentage: number
   phone?: string
   email?: string
   address?: string
@@ -82,6 +88,16 @@ const CompanySchema = new Schema<ICompany>(
     slug: { type: String, unique: true, sparse: true },
     dbName: { type: String },
     isActive: { type: Boolean, default: true },
+    subscriptionStatus: {
+      type: String,
+      enum: ['trial', 'active', 'past_due', 'blocked', 'free'],
+      default: 'trial',
+    },
+    subscriptionPlan: { type: String },
+    subscriptionEndDate: { type: Date },
+    trialEndDate: { type: Date },
+    pastDueUntil: { type: Date },
+    discountPercentage: { type: Number, default: 0 },
     phone: String,
     email: String,
     address: String,
