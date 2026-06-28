@@ -16,8 +16,8 @@ const PlanConfigSchema = new Schema<IPlanConfig>(
   {
     slug:          { type: String, required: true, unique: true },
     name:          { type: String, required: true },
-    priceMonthly:  { type: Number, required: true },
-    priceYearly:   { type: Number, required: true },
+    priceMonthly:  { type: Number, required: true, validate: { validator: Number.isInteger, message: '{PATH} must be an integer (kopecks)' } },
+    priceYearly:   { type: Number, required: true, validate: { validator: Number.isInteger, message: '{PATH} must be an integer (kopecks)' } },
     maxUsers:      { type: Number, required: true },
     maxLocations:  { type: Number, required: true },
     features:      { type: [String], default: [] },

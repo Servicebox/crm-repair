@@ -18,7 +18,7 @@ const PaymentSchema = new Schema<IPayment>(
     companyId:          { type: Schema.Types.ObjectId, ref: 'Company', required: true },
     subscriptionId:     { type: Schema.Types.ObjectId, ref: 'Subscription', required: true },
     yookassaPaymentId:  { type: String, sparse: true, unique: true },
-    amount:             { type: Number, required: true },
+    amount:             { type: Number, required: true, validate: { validator: Number.isInteger, message: '{PATH} must be an integer (kopecks)' } },
     status:             { type: String, enum: ['pending', 'succeeded', 'failed', 'cancelled', 'refunded'], default: 'pending' },
     paidAt:             { type: Date },
     rawWebhook:         { type: Schema.Types.Mixed },
