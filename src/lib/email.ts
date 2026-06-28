@@ -111,3 +111,78 @@ export async function sendOrderStatusNotification(
     `,
   })
 }
+
+export type BillingEmailType =
+  | 'trial_blocked'
+  | 'subscription_blocked'
+  | 'payment_past_due'
+  | 'payment_succeeded'
+  | 'payment_failed'
+
+const BILLING_EMAIL_TEMPLATES: Record<
+  BillingEmailType,
+  { subject: string; heading: string; body: string; cta?: { text: string; path: string } }
+> = {
+  trial_blocked: {
+    subject: 'Пробный период завершён — ServiceBox',
+    heading: 'Пробный период завершён',
+    body: 'Ваш бесплатный пробный период подошёл к концу. Оформите подписку, чтобы продолжить работу.',
+    cta: { text: 'Выбрать тариф', path: '/billing' },
+  },
+  subscription_blocked: {
+    subject: 'Доступ приостановлен — ServiceBox',
+    heading: 'Доступ приостановлен',
+    body: 'Платёж не поступил в течение grace period. Оплатите подписку для восстановления доступа.',
+    cta: { text: 'Оплатить', path: '/billing' },
+  },
+  payment_past_due: {
+    subject: 'Требуется оплата — ServiceBox',
+    heading: 'Подписка истекла',
+    body: 'Срок действия вашей подписки истёк. У вас есть 3 дня для оплаты до блокировки доступа.',
+    cta: { text: 'Продлить подписку', path: '/billing' },
+  },
+  payment_succeeded: {
+    subject: 'Оплата прошла — ServiceBox',
+    heading: 'Оплата прошла успешно',
+    body: 'Ваша подписка продлена. Спасибо за доверие!',
+  },
+  payment_failed: {
+    subject: 'Ошибка оплаты — ServiceBox',
+    heading: 'Не удалось списать оплату',
+    body: 'При автоматическом списании возникла ошибка. Проверьте данные карты и оплатите вручную.',
+    cta: { text: 'Оплатить', path: '/billing' },
+  },
+}
+
+export async function sendSubscriptionEmail(
+  email: string,
+  type: BillingEmailType,
+  data: { name: string }
+): Promise<void> {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.AUTH_URL ||
+    process.env.NEXTAUTH_URL ||
+    'http://localhost:3000'
+
+  const tmpl = BILLING_EMAIL_TEMPLATES[type]
+  const ctaHtml = tmpl.cta
+    ? `<a href="${baseUrl}${tmpl.cta.path}" style="display:inline-block;background:#3b82f6;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:600;font-size:15px;margin-top:16px">${tmpl.cta.text}</a>`
+    : ''
+
+  const transporter = createTransporter()
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM || process.env.SMTP_USER,
+    to: email,
+    subject: tmpl.subject,
+    html: `
+      <div style="font-family:Inter,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:12px;border:1px solid #e5e7eb">
+        <h1 style="font-size:20px;font-weight:700;color:#1e293b;margin:0 0 8px">${tmpl.heading}</h1>
+        <p style="color:#64748b;margin:0 0 4px">Здравствуйте, ${escapeHtml(data.name)}!</p>
+        <p style="color:#475569;margin:0 0 8px">${tmpl.body}</p>
+        ${ctaHtml}
+        <p style="color:#94a3b8;font-size:12px;margin:24px 0 0">ServiceBox CRM</p>
+      </div>
+    `,
+  })
+}
