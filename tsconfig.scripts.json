@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": ".cache/scripts"
+  },
+  "include": ["scripts/**/*.ts", "src/models/**/*.ts", "src/lib/**/*.ts"]
+}
