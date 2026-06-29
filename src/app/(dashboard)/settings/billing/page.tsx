@@ -157,7 +157,7 @@ export default function BillingPage() {
                 <Clock className="w-3 h-3" />
                 Пробный период до
               </div>
-              <div className="font-semibold">{formatDate(company.trialEndDate)}</div>
+              <div className="font-semibold">{formatDate(company?.trialEndDate)}</div>
               {trialDays !== null && (
                 <div className={cn('text-sm mt-0.5', trialDays <= 3 ? 'font-bold' : 'opacity-70')}>
                   {trialDays === 0 ? 'Сегодня последний день' : `Осталось ${trialDays} дн.`}
@@ -222,7 +222,7 @@ export default function BillingPage() {
         )}
         {status === 'past_due' && company?.pastDueUntil && (
           <div className="mt-4 bg-white/60 border border-current/20 rounded-xl p-3 text-sm">
-            Оплата просрочена. Доступ будет заблокирован {formatDate(company.pastDueUntil)}.
+            Оплата просрочена. Доступ будет заблокирован {formatDate(company?.pastDueUntil)}.
           </div>
         )}
       </div>
