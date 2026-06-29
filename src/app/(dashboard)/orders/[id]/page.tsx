@@ -18,6 +18,7 @@ import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
 import { ORDER_STATUSES } from '@/constants/orders'
 import WorkModal from '@/components/orders/WorkModal'
 import PartModal from '@/components/orders/PartModal'
+import PrintModal from '@/components/print/PrintModal'
 
 const STAGE_STATUSES = [
   'new', 'diagnostics', 'waiting_approval', 'waiting_parts',
@@ -136,6 +137,8 @@ export default function OrderDetailPage() {
   const [showQr, setShowQr] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [showPrintMenu, setShowPrintMenu] = useState(false)
+  const [showPrintModal, setShowPrintModal] = useState(false)
+  const [printModalType, setPrintModalType] = useState('receipt')
   const [approvalDraft, setApprovalDraft] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
   const [trackUrl, setTrackUrl] = useState('')
@@ -215,7 +218,8 @@ export default function OrderDetailPage() {
   function patch(payload: Record<string, unknown>) { updateMutation.mutate(payload) }
   function patchField(field: string) { return (val: string) => patch({ [field]: val }) }
   function openPrint(type: string) {
-    window.open(`/orders/${id}/print?type=${type}`, 'print-doc', 'popup=yes,width=920,height=720,scrollbars=yes,resizable=yes')
+    setPrintModalType(type)
+    setShowPrintModal(true)
   }
 
   function handleStatusChange() {
@@ -1351,7 +1355,13 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Print modal */}
+      <PrintModal
+        orderId={id}
+        order={order}
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        initialType={printModalType}
+      />
     </div>
   )
 }
