@@ -141,6 +141,7 @@ export default function OrderDetailPage() {
   const printIframeRef = useRef<HTMLIFrameElement>(null)
   const [approvalDraft, setApprovalDraft] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
+  const [trackUrl, setTrackUrl] = useState('')
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [showWorkModal, setShowWorkModal] = useState(false)
   const [showPartModal, setShowPartModal] = useState(false)
@@ -192,11 +193,12 @@ export default function OrderDetailPage() {
     onSuccess: () => router.push('/orders'),
   })
 
-  // Generate QR code
+  // Generate QR code + set trackUrl (both need window.location, so do in useEffect)
   useEffect(() => {
     if (!data?.number) return
-    const trackUrl = `${window.location.origin}/track/${data.number}`
-    QRCode.toDataURL(trackUrl, { width: 180, margin: 1 }).then(setQrDataUrl)
+    const url = `${window.location.origin}/track/${data.number}`
+    setTrackUrl(url)
+    QRCode.toDataURL(url, { width: 180, margin: 1 }).then(setQrDataUrl)
   }, [data?.number])
 
   if (isLoading) return (
@@ -315,8 +317,6 @@ export default function OrderDetailPage() {
       setTerminalAmount('')
     }, 1500)
   }
-
-  const trackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/track/${order.number}`
 
   const TABS = [
     { key: 'device', label: 'Устройство' },
