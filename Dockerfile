@@ -29,7 +29,8 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-RUN mkdir -p /app/data/uploads && chown -R nextjs:nodejs /app/data
+# Ensure uploads dir exists with correct ownership before volume mount
+RUN mkdir -p /app/data/uploads && chown -R nextjs:nodejs /app/data && chmod -R 755 /app/data
 
 USER nextjs
 
@@ -37,5 +38,7 @@ EXPOSE 3000
 
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+
+VOLUME ["/app/data/uploads"]
 
 CMD ["node", "server.js"]

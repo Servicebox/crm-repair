@@ -35,7 +35,13 @@ function SetPasswordForm({ token }: { token: string }) {
       .then(data => {
         if (data.success) {
           setUserName(data.name ?? '')
-          setStatus('form')
+          if (data.autoVerified) {
+            // User already had a password (registered via /register-org) — go straight to login
+            setStatus('done')
+            setTimeout(() => router.push('/login'), 3000)
+          } else {
+            setStatus('form')
+          }
         } else {
           setErrorMsg(data.error ?? 'Ссылка недействительна')
           setStatus('error')
@@ -105,8 +111,10 @@ function SetPasswordForm({ token }: { token: string }) {
     return (
       <div className="text-center">
         <CheckCircle className="w-14 h-14 text-green-500 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-slate-800 mb-2">Пароль установлен!</h2>
-        <p className="text-slate-500 text-sm mb-4">Теперь вы можете войти в систему.</p>
+        <h2 className="text-xl font-semibold text-slate-800 mb-2">
+          {userName ? `Добро пожаловать, ${userName}!` : 'Email подтверждён!'}
+        </h2>
+        <p className="text-slate-500 text-sm mb-4">Ваш аккаунт активирован. Теперь вы можете войти в систему.</p>
         <p className="text-slate-400 text-xs">Переходим на страницу входа...</p>
       </div>
     )

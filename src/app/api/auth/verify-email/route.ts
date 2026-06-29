@@ -5,7 +5,7 @@ import { connectToDatabase } from '@/lib/mongodb'
 import User from '@/models/User'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
-// GET: validate token and return user's name (for the password-setup form)
+// GET: validate token. If user already has a password (org registration), auto-verify.
 export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get('token')
   if (!token) {
@@ -22,13 +22,22 @@ export async function GET(req: NextRequest) {
     const user = await User.findOne({
       emailVerificationToken: tokenHash,
       emailVerificationExpires: { $gt: new Date() },
-    }).select('name email')
+    }).select('name email password')
 
     if (!user) {
       return NextResponse.json({ error: 'Ссылка недействительна или устарела' }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, name: user.name, email: user.email })
+    // If user already has a password (set during org registration), auto-verify
+    if (user.password) {
+      user.isEmailVerified = true
+      user.emailVerificationToken = undefined
+      user.emailVerificationExpires = undefined
+      await user.save()
+      return NextResponse.json({ success: true, autoVerified: true, name: user.name, email: user.email })
+    }
+
+    return NextResponse.json({ success: true, autoVerified: false, name: user.name, email: user.email })
   } catch {
     return NextResponse.json({ error: 'Ошибка сервера' }, { status: 500 })
   }

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, Users, Globe, RefreshCw, Loader2, Terminal,
   CheckCircle, XCircle, Calendar, Mail, ShieldOff, ShieldCheck,
+  CreditCard, Star, AlertTriangle, Zap, Percent,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,9 +20,37 @@ interface OrgRecord {
   createdAt: string
 }
 
+interface BillingRecord {
+  _id: string
+  name: string
+  email?: string
+  subscriptionStatus: 'trial' | 'active' | 'past_due' | 'blocked' | 'free'
+  subscriptionPlan?: string
+  subscriptionEndDate?: string
+  trialEndDate?: string
+  discountPercentage: number
+  isActive: boolean
+  createdAt: string
+}
+
+function billingBadge(status: BillingRecord['subscriptionStatus']) {
+  switch (status) {
+    case 'active':   return { label: 'Активна', cls: 'text-green-700 bg-green-50 border-green-200', icon: CheckCircle }
+    case 'trial':    return { label: 'Пробный', cls: 'text-blue-700 bg-blue-50 border-blue-200', icon: Star }
+    case 'free':     return { label: 'Бесплатный', cls: 'text-slate-600 bg-slate-50 border-slate-200', icon: Zap }
+    case 'past_due': return { label: 'Просрочена', cls: 'text-amber-700 bg-amber-50 border-amber-200', icon: AlertTriangle }
+    case 'blocked':  return { label: 'Заблокирована', cls: 'text-red-700 bg-red-50 border-red-200', icon: XCircle }
+  }
+}
+
+function daysLeft(iso?: string) {
+  if (!iso) return null
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000))
+}
+
 export default function PlatformPage() {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<'orgs' | 'logs'>('orgs')
+  const [tab, setTab] = useState<'orgs' | 'billing' | 'logs'>('orgs')
   const [logsLoading, setLogsLoading] = useState(false)
   const [logs, setLogs] = useState<string | null>(null)
   const [logsError, setLogsError] = useState('')
@@ -36,6 +65,18 @@ export default function PlatformPage() {
     },
     retry: false,
     refetchInterval: 30000,
+  })
+
+  const { data: billingData = [], refetch: refetchBilling, isFetching: isFetchingBilling } = useQuery<BillingRecord[]>({
+    queryKey: ['platform-billing'],
+    queryFn: async () => {
+      const res = await fetch('/api/platform/billing/companies')
+      if (!res.ok) throw new Error('Forbidden')
+      const json = await res.json()
+      return json.data ?? []
+    },
+    retry: false,
+    enabled: tab === 'billing',
   })
 
   const toggleMutation = useMutation({
@@ -133,8 +174,8 @@ export default function PlatformPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl mb-5 w-fit">
-        {(['orgs', 'logs'] as const).map(t => (
+      <div className="flex gap-1 bg-muted/50 p-1 rounded-xl mb-5 w-fit flex-wrap">
+        {(['orgs', 'billing', 'logs'] as const).map(t => (
           <button
             key={t}
             onClick={() => { setTab(t); if (t === 'logs' && !logs) fetchLogs() }}
@@ -143,7 +184,7 @@ export default function PlatformPage() {
               tab === t ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            {t === 'orgs' ? `Организации (${orgs.length})` : 'Логи сервера'}
+            {t === 'orgs' ? `Организации (${orgs.length})` : t === 'billing' ? 'Подписки' : 'Логи сервера'}
           </button>
         ))}
       </div>
@@ -236,6 +277,101 @@ export default function PlatformPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* Billing tab */}
+      {tab === 'billing' && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-muted-foreground" />
+              <span className="text-sm font-medium text-muted-foreground">Статус подписок всех организаций</span>
+            </div>
+            <button
+              onClick={() => refetchBilling()}
+              disabled={isFetchingBilling}
+              className="flex items-center gap-1.5 text-xs border px-2.5 py-1.5 rounded-lg hover:bg-accent transition"
+            >
+              <RefreshCw className={cn('w-3 h-3', isFetchingBilling && 'animate-spin')} />
+              Обновить
+            </button>
+          </div>
+          {isFetchingBilling ? (
+            <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+          ) : billingData.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground text-sm">Нет данных</div>
+          ) : (
+            <div className="space-y-3">
+              {/* Summary stats */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-4">
+                {(['trial', 'active', 'free', 'past_due', 'blocked'] as const).map(s => {
+                  const count = billingData.filter(b => b.subscriptionStatus === s).length
+                  const cfg = billingBadge(s)
+                  const Icon = cfg.icon
+                  return (
+                    <div key={s} className={cn('border rounded-xl p-3 text-center', cfg.cls)}>
+                      <Icon className="w-4 h-4 mx-auto mb-1" />
+                      <div className="text-xl font-bold">{count}</div>
+                      <div className="text-xs">{cfg.label}</div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Per-org billing cards */}
+              {billingData.map(org => {
+                const cfg = billingBadge(org.subscriptionStatus)
+                const Icon = cfg.icon
+                const days = org.subscriptionStatus === 'trial'
+                  ? daysLeft(org.trialEndDate)
+                  : daysLeft(org.subscriptionEndDate)
+                return (
+                  <div key={org._id} className="bg-card border rounded-xl p-4">
+                    <div className="flex items-start justify-between gap-3 flex-wrap">
+                      <div>
+                        <div className="font-semibold">{org.name}</div>
+                        {org.email && <div className="text-xs text-muted-foreground mt-0.5">{org.email}</div>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {org.discountPercentage > 0 && (
+                          <span className="flex items-center gap-1 text-xs border px-2 py-1 rounded-full text-amber-600 bg-amber-50 border-amber-200">
+                            <Percent className="w-3 h-3" />{org.discountPercentage}% скидка
+                          </span>
+                        )}
+                        <span className={cn('flex items-center gap-1.5 text-xs border px-2.5 py-1 rounded-full', cfg.cls)}>
+                          <Icon className="w-3 h-3" />{cfg.label}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                      {org.subscriptionPlan && (
+                        <span>Тариф: <span className="font-medium">{org.subscriptionPlan}</span></span>
+                      )}
+                      {org.subscriptionStatus === 'trial' && org.trialEndDate && (
+                        <span className={cn('flex items-center gap-1', days !== null && days <= 3 ? 'text-amber-600 font-semibold' : '')}>
+                          <Calendar className="w-3 h-3" />
+                          Пробный до {new Date(org.trialEndDate).toLocaleDateString('ru-RU')}
+                          {days !== null && ` (${days} дн.)`}
+                        </span>
+                      )}
+                      {org.subscriptionEndDate && org.subscriptionStatus === 'active' && (
+                        <span className="flex items-center gap-1">
+                          <Calendar className="w-3 h-3" />
+                          До {new Date(org.subscriptionEndDate).toLocaleDateString('ru-RU')}
+                          {days !== null && ` (${days} дн.)`}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-1">
+                        <Calendar className="w-3 h-3" />
+                        Создана {new Date(org.createdAt).toLocaleDateString('ru-RU')}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       {/* Logs tab */}

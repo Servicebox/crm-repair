@@ -10,7 +10,7 @@ import {
   Settings, HelpCircle, Bell, Shield, FileText, Upload,
   Wrench, ShoppingBag, Store, MessageCircle, TrendingUp,
   ChevronDown, ChevronRight, LogOut, User, Bot, RotateCcw,
-  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt, Clock, Globe, BookOpen,
+  Menu, X, Sun, Moon, MapPin, Code2, Tag, Receipt, Clock, Globe, BookOpen, CreditCard,
 } from 'lucide-react'
 
 interface NavItem {
@@ -83,6 +83,7 @@ const NAV: NavItem[] = [
       { label: 'Шаблоны документов', href: '/settings/documents', icon: FileText, roles: ['owner', 'admin'] },
       { label: 'Этикетка', href: '/settings/label', icon: Tag, roles: ['owner', 'admin'] },
       { label: 'Кассы', href: '/settings/cashier', icon: Receipt, roles: ['owner', 'admin'] },
+      { label: 'Подписка', href: '/settings/billing', icon: CreditCard, roles: ['owner'] },
     ],
   },
   { label: 'Настройки', href: '/settings', icon: Settings },
