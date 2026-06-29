@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-helpers'
+import { requirePlatformOwner } from '@/lib/api-helpers'
 import { checkSubscriptions } from '@/lib/cron/checkSubscriptions'
 
 export const runtime = 'nodejs'
 
 export async function POST() {
-  const authResult = await requireSuperAdmin()
-  if (authResult instanceof NextResponse) return authResult
+  const authResult = await requirePlatformOwner()
+  if (authResult.error) return authResult.error
 
   try {
     await checkSubscriptions()

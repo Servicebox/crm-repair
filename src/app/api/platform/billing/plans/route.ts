@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
-import { requireSuperAdmin } from '@/lib/api-helpers'
+import { requirePlatformOwner } from '@/lib/api-helpers'
 import { connectToDatabase } from '@/lib/mongodb'
 import PlanConfig from '@/models/PlanConfig'
 
 export async function GET() {
-  const { error } = await requireSuperAdmin()
+  const { error } = await requirePlatformOwner()
   if (error) return error
 
   await connectToDatabase()

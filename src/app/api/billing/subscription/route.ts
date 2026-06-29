@@ -9,6 +9,10 @@ export async function GET() {
   const { session, error } = await requireTenantAuth()
   if (error) return error
 
+  if (!session!.user.companyId) {
+    return NextResponse.json({ success: true, data: { company: null, subscription: null } })
+  }
+
   try {
     await connectToDatabase()
     const companyId = new Types.ObjectId(session!.user.companyId)

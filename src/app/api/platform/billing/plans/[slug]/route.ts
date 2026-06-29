@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireSuperAdmin } from '@/lib/api-helpers'
+import { requirePlatformOwner } from '@/lib/api-helpers'
 import { connectToDatabase } from '@/lib/mongodb'
 import PlanConfig from '@/models/PlanConfig'
 
@@ -17,7 +17,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: { slug: string } }
 ) {
-  const { error } = await requireSuperAdmin()
+  const { error } = await requirePlatformOwner()
   if (error) return error
 
   let body: unknown

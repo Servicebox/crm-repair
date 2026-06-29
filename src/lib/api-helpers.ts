@@ -69,6 +69,19 @@ export async function requireSuperAdmin() {
   return { session }
 }
 
+// Platform owner check by email (same as sidebar logic)
+export async function requirePlatformOwner() {
+  const session = await auth()
+  if (!session?.user?.email) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
+  }
+  const ownerEmail = process.env.PLATFORM_OWNER_EMAIL
+  if (!ownerEmail || session.user.email !== ownerEmail) {
+    return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+  }
+  return { session }
+}
+
 export function ok<T>(data: T, status = 200) {
   return NextResponse.json({ success: true, data }, { status })
 }

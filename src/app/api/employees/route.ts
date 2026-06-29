@@ -50,8 +50,10 @@ export async function GET() {
   const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { User } } = auth
+  const companyId = auth.session!.user.companyId
 
-  const employees = await User.find({}).select('-password -emailVerificationToken -passwordResetToken').lean()
+  const filter = companyId ? { companyId } : {}
+  const employees = await User.find(filter).select('-password -emailVerificationToken -passwordResetToken').lean()
   return ok(employees)
 }
 
@@ -64,7 +66,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const data = CreateEmployeeSchema.parse(body)
 
-    const existing = await User.findOne({ email: data.email })
+    const companyId = auth.session!.user.companyId
+    const existing = await User.findOne({ email: data.email, ...(companyId ? { companyId } : {}) })
     if (existing) return err('Email уже зарегистрирован', 409)
 
     const manualPassword = !!data.password
