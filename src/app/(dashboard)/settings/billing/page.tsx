@@ -504,16 +504,15 @@ function TenantBillingView() {
 // ─── Root page ────────────────────────────────────────────────────────────────
 
 export default function BillingPage() {
-  const { data: session } = useSession()
-  const isPlatformOwner = session?.user?.email === PLATFORM_OWNER_EMAIL
+  const { data: session, status } = useSession()
 
-  if (!session) {
+  if (status === 'loading') {
     return <div className="flex items-center justify-center py-24"><Loader2 className="w-8 h-8 animate-spin text-blue-500" /></div>
   }
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
-      {isPlatformOwner ? <PlatformBillingView /> : <TenantBillingView />}
+      {session?.user?.isPlatformOwner ? <PlatformBillingView /> : <TenantBillingView />}
     </div>
   )
 }

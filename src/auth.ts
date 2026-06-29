@@ -38,6 +38,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!dbUser?.isActive) return session
 
         session.user.role = dbUser.role ?? ''
+        session.user.isPlatformOwner = (token.email as string | undefined) === process.env.PLATFORM_OWNER_EMAIL && !!process.env.PLATFORM_OWNER_EMAIL
 
         const rawCompanyId = dbUser.companyId?.toString() ?? ''
         if (rawCompanyId) {

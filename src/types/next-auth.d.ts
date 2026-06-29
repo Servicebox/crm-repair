@@ -12,6 +12,7 @@ declare module 'next-auth' {
       dbName: string
       subscriptionStatus?: string
       pastDueUntil?: Date
+      isPlatformOwner?: boolean
     }
   }
   interface User {
