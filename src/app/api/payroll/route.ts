@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
     )
     baseAccrued = result.total
     breakdown = result.byRule
-  } else {
+  } else if (userSalary) {
     // Для legacy-режима % считается только от выручки работ, запчасти не входят
     baseAccrued =
       calcLegacyEarnings(
