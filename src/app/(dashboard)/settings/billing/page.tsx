@@ -141,7 +141,7 @@ export default function BillingPage() {
               )}
             </div>
           </div>
-          {company?.discountPercentage > 0 && (
+          {(company?.discountPercentage ?? 0) > 0 && (
             <div className="flex items-center gap-1.5 bg-white/60 border border-current/20 px-3 py-1.5 rounded-full text-sm font-semibold">
               <Percent className="w-3.5 h-3.5" />
               Скидка {company.discountPercentage}%
@@ -235,7 +235,7 @@ export default function BillingPage() {
             <div className="font-semibold">Бесплатный доступ</div>
             <p className="text-sm text-muted-foreground mt-1">
               Ваша организация пользуется ServiceBox CRM бесплатно.
-              {company?.discountPercentage === 100 && ' Скидка 100% применена администратором платформы.'}
+              {(company?.discountPercentage ?? 0) === 100 && ' Скидка 100% применена администратором платформы.'}
             </p>
           </div>
         </div>
