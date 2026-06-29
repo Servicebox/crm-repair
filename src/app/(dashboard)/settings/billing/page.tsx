@@ -58,13 +58,14 @@ interface ManagedOrg {
 
 const PLATFORM_OWNER_EMAIL = process.env.NEXT_PUBLIC_PLATFORM_OWNER_EMAIL
 
-function statusCfg(s: SubStatus) {
+function statusCfg(s: SubStatus | string | undefined) {
   switch (s) {
     case 'active':   return { label: 'Активна',          cls: 'text-green-700 bg-green-50 border-green-200',   icon: CheckCircle  }
     case 'trial':    return { label: 'Пробный период',   cls: 'text-blue-700 bg-blue-50 border-blue-200',      icon: Star         }
     case 'free':     return { label: 'Бесплатный',       cls: 'text-slate-600 bg-slate-50 border-slate-200',   icon: Zap          }
     case 'past_due': return { label: 'Просрочена',       cls: 'text-amber-700 bg-amber-50 border-amber-200',   icon: AlertTriangle}
     case 'blocked':  return { label: 'Заблокирована',    cls: 'text-red-700 bg-red-50 border-red-200',         icon: XCircle      }
+    default:         return { label: 'Пробный период',   cls: 'text-blue-700 bg-blue-50 border-blue-200',      icon: Star         }
   }
 }
 

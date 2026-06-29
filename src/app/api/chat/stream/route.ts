@@ -24,10 +24,12 @@ export async function GET(req: NextRequest) {
     participants: mongoose.Types.ObjectId[]
   } | null
 
+  const isPlatformOwner = !!(process.env.PLATFORM_OWNER_EMAIL && session.user.email === process.env.PLATFORM_OWNER_EMAIL)
+
   if (chatRoom) {
     if (chatRoom.scope === 'internal') {
-      // internal rooms are per-tenant — user must belong to a company
-      if (!session.user.companyId) {
+      // internal rooms are per-tenant — user must belong to a company (platform owner always allowed)
+      if (!session.user.companyId && !isPlatformOwner) {
         return new Response('Forbidden', { status: 403 })
       }
     } else if (chatRoom.scope === 'inter_org') {
