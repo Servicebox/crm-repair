@@ -104,19 +104,23 @@ function EditableTextarea({ label, value, onSave }: { label: string; value: stri
 
 type SalaryType = 'percent_revenue' | 'percent_profit' | 'fixed' | 'rate_per_order' | 'hourly'
 interface MasterSalary {
-  type: SalaryType
-  value: number
+  type?: SalaryType
+  value?: number
   hourlyRate?: number
   guaranteed?: number
+  rules?: unknown[]
 }
 
 function calcMasterEarnings(salary: MasterSalary, revenue: number, profit: number, totalMinutes: number): number | null {
+  // Flex salary (rules-based) — can't calculate per-order earnings without full month context
+  if (Array.isArray(salary.rules)) return null
   switch (salary.type) {
-    case 'percent_revenue': return revenue * salary.value / 100
-    case 'percent_profit': return Math.max(0, profit * salary.value / 100)
-    case 'rate_per_order': return salary.value
-    case 'hourly': return (totalMinutes / 60) * (salary.hourlyRate ?? salary.value)
+    case 'percent_revenue': return revenue * (salary.value ?? 0) / 100
+    case 'percent_profit': return Math.max(0, profit * (salary.value ?? 0) / 100)
+    case 'rate_per_order': return salary.value ?? null
+    case 'hourly': return (totalMinutes / 60) * (salary.hourlyRate ?? salary.value ?? 0)
     case 'fixed': return null
+    default: return null
   }
 }
 
@@ -1015,6 +1019,7 @@ export default function OrderDetailPage() {
             )
             const earnings = calcMasterEarnings(master.salary, revenue, profit, totalMinutes)
 
+            const isFlexSalary = Array.isArray(master.salary.rules)
             const salaryLabel: Record<string, string> = {
               percent_revenue: `${master.salary.value}% от выручки`,
               percent_profit: `${master.salary.value}% от прибыли`,
@@ -1022,6 +1027,9 @@ export default function OrderDetailPage() {
               hourly: `${master.salary.hourlyRate ?? master.salary.value} ₽/ч`,
               fixed: 'Фиксированный оклад',
             }
+            const schemeLabel = isFlexSalary
+              ? `Гибкая (${(master.salary.rules as unknown[]).length} прав.)`
+              : (salaryLabel[master.salary.type ?? ''] ?? '—')
 
             return (
               <div className="bg-card border rounded-xl p-4">
@@ -1031,7 +1039,7 @@ export default function OrderDetailPage() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between items-center">
                     <span className="text-muted-foreground">{master.name}</span>
-                    <span className="text-xs text-muted-foreground">{salaryLabel[master.salary.type]}</span>
+                    <span className="text-xs text-muted-foreground">{schemeLabel}</span>
                   </div>
                   {/* Revenue breakdown so it's visible what goes into salary */}
                   {(master.salary.type === 'percent_revenue' || master.salary.type === 'percent_profit') && (
@@ -1072,6 +1080,8 @@ export default function OrderDetailPage() {
                     <span className="font-medium">Заработает с заказа</span>
                     {earnings !== null ? (
                       <span className="font-bold text-green-600 text-base">{formatCurrency(earnings)}</span>
+                    ) : isFlexSalary ? (
+                      <span className="text-xs text-muted-foreground">Учитывается в ведомости</span>
                     ) : (
                       <span className="text-xs text-muted-foreground">Зависит от оклада</span>
                     )}

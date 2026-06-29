@@ -326,9 +326,9 @@ function DetailDrawer({
               <div className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Корректировки</div>
 
               {/* Existing bonuses */}
-              {record.bonuses.length > 0 && (
+              {(record.bonuses ?? []).length > 0 && (
                 <div className="space-y-1 mb-2">
-                  {record.bonuses.map(b => (
+                  {(record.bonuses ?? []).map(b => (
                     <div key={b._id} className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5 text-xs">
                       <span className="text-green-700 font-medium">+{formatCurrency(b.amount)}</span>
                       <span className="flex-1 text-green-800">{b.reason}</span>
@@ -344,9 +344,9 @@ function DetailDrawer({
               )}
 
               {/* Existing deductions */}
-              {record.deductions.length > 0 && (
+              {(record.deductions ?? []).length > 0 && (
                 <div className="space-y-1 mb-2">
-                  {record.deductions.map(d => (
+                  {(record.deductions ?? []).map(d => (
                     <div key={d._id} className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-1.5 text-xs">
                       <span className="text-red-700 font-medium">-{formatCurrency(d.amount)}</span>
                       <span className="flex-1 text-red-800">{d.reason}</span>
@@ -714,10 +714,10 @@ export default function PayrollPage() {
                       {pr ? (
                         <div>
                           <div className="font-bold text-green-600">{formatCurrency(pr.accrued)}</div>
-                          {(pr.bonuses.length > 0 || pr.deductions.length > 0) && (
+                          {((pr.bonuses ?? []).length > 0 || (pr.deductions ?? []).length > 0) && (
                             <div className="text-xs text-muted-foreground">
-                              {pr.bonuses.length > 0 && <span className="text-green-600">+{formatCurrency(pr.bonuses.reduce((s, b) => s + b.amount, 0))}</span>}
-                              {pr.deductions.length > 0 && <span className="text-red-600 ml-1">-{formatCurrency(pr.deductions.reduce((s, d) => s + d.amount, 0))}</span>}
+                              {(pr.bonuses ?? []).length > 0 && <span className="text-green-600">+{formatCurrency((pr.bonuses ?? []).reduce((s, b) => s + b.amount, 0))}</span>}
+                              {(pr.deductions ?? []).length > 0 && <span className="text-red-600 ml-1">-{formatCurrency((pr.deductions ?? []).reduce((s, d) => s + d.amount, 0))}</span>}
                             </div>
                           )}
                         </div>

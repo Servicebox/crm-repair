@@ -10,6 +10,7 @@ const UpdateCompanySchema = z.object({
     .optional(),
   subscriptionPlan: z.string().optional(),
   subscriptionEndDate: z.string().datetime().optional(),
+  trialEndDate: z.string().datetime().optional(),
   discountPercentage: z.number().min(0).max(100).optional(),
 })
 
