@@ -10,7 +10,7 @@ import {
   Phone, Mail, User, Smartphone, Wrench, DollarSign,
   Calendar, Shield, MessageSquare, Camera, FileText,
   Clock, ChevronDown, Save, Receipt, AlertCircle, TrendingUp,
-  Home, Upload, Maximize2,
+  Home, Upload,
 } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import { StatusBadge, PriorityBadge } from '@/components/orders/OrderBadge'
@@ -136,9 +136,6 @@ export default function OrderDetailPage() {
   const [showQr, setShowQr] = useState(false)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [showPrintMenu, setShowPrintMenu] = useState(false)
-  const [showPrintModal, setShowPrintModal] = useState(false)
-  const [printModalType, setPrintModalType] = useState('receipt')
-  const printIframeRef = useRef<HTMLIFrameElement>(null)
   const [approvalDraft, setApprovalDraft] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
   const [trackUrl, setTrackUrl] = useState('')
@@ -217,6 +214,9 @@ export default function OrderDetailPage() {
 
   function patch(payload: Record<string, unknown>) { updateMutation.mutate(payload) }
   function patchField(field: string) { return (val: string) => patch({ [field]: val }) }
+  function openPrint(type: string) {
+    window.open(`/orders/${id}/print?type=${type}`, 'print-doc', 'popup=yes,width=920,height=720,scrollbars=yes,resizable=yes')
+  }
 
   function handleStatusChange() {
     if (!newStatus) return
@@ -371,7 +371,7 @@ export default function OrderDetailPage() {
                 ].map(item => (
                   <button
                     key={item.type}
-                    onClick={() => { setPrintModalType(item.type); setShowPrintModal(true); setShowPrintMenu(false) }}
+                    onClick={() => { openPrint(item.type); setShowPrintMenu(false) }}
                     className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-accent transition w-full text-left"
                   >
                     {item.icon} {item.label}
@@ -401,7 +401,7 @@ export default function OrderDetailPage() {
             <p className="text-sm text-muted-foreground mb-2">Клиент может отсканировать код и увидеть статус ремонта</p>
             <div className="bg-slate-50 border rounded-lg px-3 py-2 text-xs font-mono break-all text-blue-700 mb-3">{trackUrl}</div>
             <div className="flex gap-2">
-              <button onClick={() => { setPrintModalType('label'); setShowPrintModal(true) }} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">
+              <button onClick={() => openPrint('label')} className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">
                 Печать с QR
               </button>
               <button onClick={() => { navigator.clipboard.writeText(trackUrl) }} className="text-xs border px-3 py-1.5 rounded-lg hover:bg-accent transition">
@@ -868,7 +868,7 @@ export default function OrderDetailPage() {
                   <Receipt className="w-4 h-4 text-blue-500" /> Через терминал
                 </button>
                 <button
-                  onClick={() => { setPrintModalType('works-act'); setShowPrintModal(true) }}
+                  onClick={() => openPrint('works-act')}
                   className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm hover:bg-accent transition"
                 >
                   <FileText className="w-4 h-4 text-green-500" /> Акт о работах
@@ -934,7 +934,7 @@ export default function OrderDetailPage() {
                       <p className="text-sm font-medium text-green-700">{terminalMessage}</p>
                       <div className="flex gap-2 mt-4">
                         <button type="button" onClick={() => { setShowTerminalModal(false); setTerminalStatus('idle') }} className="flex-1 py-2 border rounded-lg text-sm hover:bg-accent">Закрыть</button>
-                        <button onClick={() => { setPrintModalType('works-act'); setShowPrintModal(true); setShowTerminalModal(false); setTerminalStatus('idle') }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm text-center hover:bg-blue-700 transition">
+                        <button onClick={() => { openPrint('works-act'); setShowTerminalModal(false); setTerminalStatus('idle') }} className="flex-1 py-2 bg-blue-600 text-white rounded-lg text-sm text-center hover:bg-blue-700 transition">
                           Печать акта
                         </button>
                       </div>
@@ -1352,50 +1352,6 @@ export default function OrderDetailPage() {
       </div>
 
       {/* Print modal */}
-      {showPrintModal && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm">
-          {/* Modal header */}
-          <div className="bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0">
-            <div className="flex gap-1">
-              {[
-                { type: 'receipt', label: 'Квитанция' },
-                { type: 'act', label: 'Акт приёмки' },
-                { type: 'works-act', label: 'Акт о работах' },
-                { type: 'label', label: 'Этикетка' },
-              ].map(item => (
-                <button
-                  key={item.type}
-                  onClick={() => setPrintModalType(item.type)}
-                  className={`px-3 py-1 text-xs rounded-lg transition ${printModalType === item.type ? 'bg-blue-600 text-white' : 'hover:bg-slate-100 text-slate-600'}`}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-2 ml-auto">
-              <button
-                onClick={() => printIframeRef.current?.contentWindow?.print()}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition"
-              >
-                <Printer className="w-4 h-4" /> Печать
-              </button>
-              <button
-                onClick={() => setShowPrintModal(false)}
-                className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          {/* Iframe preview */}
-          <iframe
-            ref={printIframeRef}
-            src={`/orders/${id}/print?type=${printModalType}&preview=1`}
-            className="flex-1 w-full bg-white"
-            title="Предпросмотр документа"
-          />
-        </div>
-      )}
     </div>
   )
 }
