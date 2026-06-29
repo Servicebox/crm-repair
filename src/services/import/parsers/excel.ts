@@ -93,7 +93,10 @@ export async function streamExcel(
     sheets: sheetName,
   })
 
-  const ws = workbook.Sheets[sheetName]
+  const resolvedSheet = sheetName && workbook.SheetNames.includes(sheetName)
+    ? sheetName
+    : workbook.SheetNames[0]
+  const ws = resolvedSheet ? workbook.Sheets[resolvedSheet] : undefined
   if (!ws) return { processed: 0, failed: 0 }
 
   const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(ws, {

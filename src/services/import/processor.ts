@@ -62,6 +62,7 @@ async function upsertClient(
   const dupFilter: Record<string, unknown>[] = []
   if (phone) dupFilter.push({ phone })
   if (email) dupFilter.push({ email })
+  if (!dupFilter.length && client.name) dupFilter.push({ name: client.name })
 
   const existing = dupFilter.length
     ? await models.Client.findOne({ $or: dupFilter }).select('_id').lean<{ _id: mongoose.Types.ObjectId }>()
@@ -114,6 +115,90 @@ async function upsertProduct(
   }
 
   await models.Product.create({ ...product, isActive: true })
+  return 'created'
+}
+
+async function upsertOrder(
+  models: ReturnType<typeof getModels>,
+  data: Record<string, unknown>,
+  strategy: DuplicateStrategy,
+  companyId: string
+): Promise<'created' | 'updated' | 'skipped'> {
+  const order = (data.order as Record<string, unknown>) ?? {}
+
+  const clientName = order.client_name ? String(order.client_name) : null
+  const clientPhone = order.client_phone ? String(order.client_phone) : null
+  const deviceType = order.device_name ? String(order.device_name) : 'Устройство'
+  const defect = order.malfunction ? String(order.malfunction) : '—'
+
+  if (!clientName) throw new Error('Имя клиента (заказ) обязательно')
+
+  // Find or create the client
+  const clientFilter: Record<string, unknown>[] = []
+  if (clientPhone) clientFilter.push({ phone: clientPhone })
+  if (!clientFilter.length) clientFilter.push({ name: clientName })
+  let clientDoc = await models.Client.findOne({ $or: clientFilter }).select('_id name').lean<{ _id: mongoose.Types.ObjectId; name: string }>()
+  if (!clientDoc) {
+    const created = await models.Client.create({ name: clientName, phone: clientPhone ?? undefined, source: 'import' })
+    clientDoc = { _id: created._id as mongoose.Types.ObjectId, name: created.name as string }
+  }
+
+  // Find a system user to set as createdBy (first owner/admin in tenant, or fallback ObjectId)
+  const systemUser = await models.User.findOne({}).select('_id').lean<{ _id: mongoose.Types.ObjectId }>()
+  const createdByOid = systemUser?._id ?? new mongoose.Types.ObjectId()
+
+  // Order number — required and unique
+  let orderNumber = order.number ? String(order.number) : null
+  if (!orderNumber) {
+    const count = await models.Order.countDocuments()
+    orderNumber = `IMP-${String(count + 1).padStart(5, '0')}`
+  }
+
+  // Duplicate check by order number
+  const existing = await models.Order.findOne({ number: orderNumber }).select('_id').lean<{ _id: mongoose.Types.ObjectId }>()
+
+  if (existing) {
+    if (strategy === 'skip') return 'skipped'
+    if (strategy === 'create') {
+      const suffix = `-${Date.now().toString(36)}`
+      orderNumber = orderNumber + suffix
+    } else {
+      const updateData: Record<string, unknown> = {
+        clientName,
+        clientPhone: clientPhone ?? undefined,
+        deviceType,
+        defectDescription: defect,
+        status: order.status ?? undefined,
+        finalCost: order.total_price ? Number(order.total_price) : undefined,
+        masterName: order.master_name ?? undefined,
+      }
+      if (order.created_at) updateData.createdAt = new Date(String(order.created_at))
+      if (order.completed_at) updateData.issuedAt = new Date(String(order.completed_at))
+      await models.Order.updateOne({ _id: existing._id }, { $set: updateData })
+      return 'updated'
+    }
+  }
+
+  const orderData: Record<string, unknown> = {
+    number: orderNumber,
+    clientId: clientDoc._id,
+    clientName,
+    clientPhone: clientPhone ?? undefined,
+    deviceType,
+    defectDescription: defect,
+    createdBy: createdByOid,
+    status: (order.status as string) || 'new',
+    finalCost: order.total_price ? Number(order.total_price) : 0,
+  }
+  if (order.device_brand) orderData.deviceBrand = String(order.device_brand)
+  if (order.device_model) orderData.deviceModel = String(order.device_model)
+  if (order.serial_number) orderData.deviceSerial = String(order.serial_number)
+  if (order.master_name) orderData.masterName = String(order.master_name)
+  if (order.notes) orderData.adminComment = String(order.notes)
+  if (order.created_at) orderData.createdAt = new Date(String(order.created_at))
+  if (order.completed_at) orderData.issuedAt = new Date(String(order.completed_at))
+
+  await models.Order.create(orderData)
   return 'created'
 }
 
@@ -174,6 +259,9 @@ export async function runImport(jobId: string, companyId: string, dbName: string
           break
         case 'products':
           result = await upsertProduct(models, data, job.duplicate_strategy)
+          break
+        case 'orders':
+          result = await upsertOrder(models, data, job.duplicate_strategy, companyId)
           break
         default:
           throw new Error(`Неизвестная сущность: ${job.target_entity}`)

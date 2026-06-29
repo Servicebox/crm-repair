@@ -35,6 +35,26 @@ export async function GET() {
   return NextResponse.json({ data: enriched })
 }
 
+// Permanently delete an org and its platform-DB users — only platform owner
+export async function DELETE(req: NextRequest) {
+  const session = await auth()
+  if (!session?.user?.email || !isPlatformOwner(session.user.email)) return forbidden()
+
+  const { searchParams } = new URL(req.url)
+  const id = searchParams.get('id')
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+  }
+
+  await connectToDatabase()
+  const company = await Company.findByIdAndDelete(id).lean()
+  if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  await User.deleteMany({ companyId: new mongoose.Types.ObjectId(id) })
+
+  return NextResponse.json({ data: { deleted: id } })
+}
+
 // Toggle org active/inactive — only platform owner
 export async function PATCH(req: NextRequest) {
   const session = await auth()

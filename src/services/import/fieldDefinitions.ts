@@ -137,6 +137,24 @@ export const TARGET_FIELDS: TargetField[] = [
     entity: 'orders',
     synonyms: ['примечание', 'заметки', 'notes', 'комментарий'],
   },
+  {
+    path: 'order.discount',
+    label: 'Скидка (заказ)',
+    entity: 'orders',
+    synonyms: ['скидка', 'discount', 'скидка на ремонт'],
+  },
+  {
+    path: 'order.prepayment',
+    label: 'Предоплата',
+    entity: 'orders',
+    synonyms: ['предоплата', 'аванс', 'prepayment', 'deposit', 'advance'],
+  },
+  {
+    path: 'order.due_date',
+    label: 'Срок готовности',
+    entity: 'orders',
+    synonyms: ['срок', 'готовность', 'due_date', 'deadline', 'дата готовности'],
+  },
 
   // ── Products / Warehouse ─────────────────────────────────────────────
   {

@@ -84,7 +84,7 @@ function daysLeft(iso?: string | null): number | null {
 function OrgEditRow({ org, onSaved }: { org: ManagedOrg; onSaved: () => void }) {
   const [editing, setEditing] = useState(false)
   const [status, setStatus] = useState<SubStatus>(org.subscriptionStatus)
-  const [discount, setDiscount] = useState(String(org.discountPercentage))
+  const [discount, setDiscount] = useState(String(org.discountPercentage ?? 0))
   const [trialEnd, setTrialEnd] = useState(org.trialEndDate ? org.trialEndDate.slice(0, 10) : '')
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
@@ -97,7 +97,13 @@ function OrgEditRow({ org, onSaved }: { org: ManagedOrg; onSaved: () => void }) 
     setSaving(true)
     setErr('')
     try {
-      const body: Record<string, unknown> = { subscriptionStatus: status, discountPercentage: Number(discount) }
+      const discountNum = Number(discount)
+      if (isNaN(discountNum) || discountNum < 0 || discountNum > 100) {
+        setErr('Скидка должна быть числом от 0 до 100')
+        setSaving(false)
+        return
+      }
+      const body: Record<string, unknown> = { subscriptionStatus: status, discountPercentage: discountNum }
       if (trialEnd) body.trialEndDate = new Date(trialEnd).toISOString()
       const res = await fetch(`/api/platform/billing/companies/${org._id}`, {
         method: 'PATCH',

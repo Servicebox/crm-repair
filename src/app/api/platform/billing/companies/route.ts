@@ -8,7 +8,7 @@ export async function GET() {
   if (error) return error
 
   await connectToDatabase()
-  const companies = await Company.find()
+  const companies = await Company.find({ isActive: { $ne: false } })
     .select(
       'name email subscriptionStatus subscriptionPlan subscriptionEndDate trialEndDate discountPercentage isActive createdAt'
     )
