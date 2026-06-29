@@ -87,6 +87,10 @@ const UpdateOrderSchema = z.object({
   // other
   checklist: z.record(z.string()).optional(),
   customFields: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
+  photos: z.array(z.string()).optional(),
+  deviceAtClient: z.boolean().optional(),
+  approvalMessage: z.string().optional(),
+  approvalStatus: z.string().optional(),
 })
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
@@ -195,6 +199,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (updates.warrantyDays !== undefined) order.warrantyDays = updates.warrantyDays
     if (updates.checklist !== undefined) order.checklist = updates.checklist as Record<string, import('@/models/Order').ChecklistValue>
     if (updates.customFields !== undefined) order.customFields = updates.customFields
+    if (updates.photos !== undefined) order.photos = updates.photos
+    if (updates.deviceAtClient !== undefined) order.deviceAtClient = updates.deviceAtClient
+    if (updates.approvalMessage !== undefined) order.approvalMessage = updates.approvalMessage
+    if (updates.approvalStatus !== undefined) order.approvalStatus = updates.approvalStatus
 
     await order.save()
     return ok(order)

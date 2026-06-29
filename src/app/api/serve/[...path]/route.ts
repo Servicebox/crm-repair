@@ -4,7 +4,7 @@ import path from 'path'
 
 export const dynamic = 'force-dynamic'
 
-const ALLOWED_DIRS = new Set(['avatars', 'logos'])
+const ALLOWED_DIRS = new Set(['avatars', 'logos', 'orders'])
 
 const MIME: Record<string, string> = {
   '.webp': 'image/webp',

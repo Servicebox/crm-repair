@@ -113,6 +113,37 @@ export default async function TrackPage({ params }: { params: { number: string }
               <div className="text-blue-600">{order.masterComment}</div>
             </div>
           )}
+
+          {order.approvalMessage && (
+            <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-xl text-sm">
+              <div className="font-medium text-amber-700 mb-1">Требует согласования</div>
+              <div className="text-amber-600">{order.approvalMessage}</div>
+              {order.approvalStatus && (
+                <div className={`mt-2 text-xs font-medium px-2 py-0.5 rounded-full inline-block
+                  ${order.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' :
+                    order.approvalStatus === 'rejected' ? 'bg-red-100 text-red-700' :
+                    order.approvalStatus === 'thinking' ? 'bg-yellow-100 text-yellow-700' :
+                    'bg-slate-100 text-slate-600'}`}>
+                  {order.approvalStatus === 'approved' ? 'Согласовано' :
+                   order.approvalStatus === 'rejected' ? 'Отказался' :
+                   order.approvalStatus === 'thinking' ? 'Клиент ещё думает' : 'Ожидает ответа'}
+                </div>
+              )}
+            </div>
+          )}
+
+          {order.photos && order.photos.length > 0 && (
+            <div className="mt-4">
+              <div className="text-sm font-medium text-slate-700 mb-2">Фото устройства</div>
+              <div className="grid grid-cols-3 gap-2">
+                {order.photos.map((url: string, i: number) => (
+                  <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                    <img src={url} alt={`Фото ${i + 1}`} className="w-full aspect-square object-cover rounded-lg border hover:opacity-80 transition" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Approval buttons when waiting for client decision */}

@@ -106,6 +106,9 @@ export interface IOrder extends Document {
   prepaymentReceived?: boolean
   prepaymentMethod?: string
   photos?: string[]
+  deviceAtClient?: boolean
+  approvalMessage?: string
+  approvalStatus?: string
 
   notificationSent: boolean
   createdBy: mongoose.Types.ObjectId
@@ -234,6 +237,9 @@ const OrderSchema = new Schema<IOrder>(
     prepaymentReceived: { type: Boolean, default: false },
     prepaymentMethod: String,
     photos: { type: [String], default: [] },
+    deviceAtClient: { type: Boolean, default: false },
+    approvalMessage: String,
+    approvalStatus: String,
 
     notificationSent: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

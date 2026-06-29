@@ -70,11 +70,13 @@ function PrintContent() {
     QRCode.toDataURL(trackUrl, { width: 100, margin: 0 }).then(setQrDataUrl)
   }, [orderData?.number])
 
+  const isPreview = searchParams.get('preview') === '1'
+
   useEffect(() => {
-    if (orderData && companyData) {
+    if (orderData && companyData && !isPreview) {
       setTimeout(() => window.print(), 600)
     }
-  }, [orderData, companyData])
+  }, [orderData, companyData, isPreview])
 
   if (!orderData || !companyData) {
     return <div className="flex items-center justify-center h-screen">Загрузка...</div>
