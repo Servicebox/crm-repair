@@ -23,6 +23,7 @@ const SERVICE_TEMPLATES = [
 ]
 import { cn } from '@/lib/utils'
 
+type ClientHitProps = { _id: string; name: string; phone?: string; totalOrders: number }
 type ChecklistValue = 'ok' | 'defect' | 'na'
 type OrderType = 'repair' | 'service'
 
@@ -51,7 +52,9 @@ export default function NewOrderPage() {
   const [clientPhone, setClientPhone] = useState('')
   const [clientEmail, setClientEmail] = useState('')
   const [source, setSource] = useState('')
-  const [clientSearch, setClientSearch] = useState('')
+  const [clientSelected, setClientSelected] = useState(false)
+  const [debouncedName, setDebouncedName] = useState('')
+  const [debouncedPhone, setDebouncedPhone] = useState('')
 
   const [deviceType, setDeviceType] = useState('')
   const [deviceBrand, setDeviceBrand] = useState('')
@@ -98,6 +101,16 @@ export default function NewOrderPage() {
     return now.toISOString().slice(0, 16)
   })
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(clientName), 300)
+    return () => clearTimeout(t)
+  }, [clientName])
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedPhone(clientPhone), 300)
+    return () => clearTimeout(t)
+  }, [clientPhone])
+
   const { data: employees } = useQuery({
     queryKey: ['employees'],
     queryFn: async () => {
@@ -138,16 +151,33 @@ export default function NewOrderPage() {
   const accessoryOptions = dictAccessories.length > 0 ? dictAccessories.map(i => i.value) : ACCESSORY_TEMPLATES
   const defectOptions = dictDefect.length > 0 ? dictDefect.map(i => i.value) : DEFECT_TEMPLATES
 
-  const { data: clientResults } = useQuery({
-    queryKey: ['client-search', clientPhone],
+  const { data: nameResults } = useQuery({
+    queryKey: ['client-search-name', debouncedName],
     queryFn: async () => {
-      if (!clientPhone || clientPhone.length < 5) return []
-      const res = await fetch(`/api/clients?search=${clientPhone}`)
+      const res = await fetch(`/api/clients?search=${encodeURIComponent(debouncedName)}&limit=6`)
       const json = await res.json()
       return json.data?.clients ?? []
     },
-    enabled: clientPhone.length >= 5,
+    enabled: !clientSelected && debouncedName.length >= 2,
+    staleTime: 5_000,
   })
+
+  const { data: phoneResults } = useQuery({
+    queryKey: ['client-search-phone', debouncedPhone],
+    queryFn: async () => {
+      const res = await fetch(`/api/clients?search=${encodeURIComponent(debouncedPhone)}&limit=6`)
+      const json = await res.json()
+      return json.data?.clients ?? []
+    },
+    enabled: !clientSelected && debouncedPhone.replace(/\D/g, '').length >= 5,
+    staleTime: 5_000,
+  })
+
+  function pickClient(c: ClientHitProps) {
+    setClientName(c.name)
+    setClientPhone(c.phone ?? clientPhone)
+    setClientSelected(true)
+  }
 
   function setChecklistAll(val: ChecklistValue) {
     const newVal: Record<string, ChecklistValue> = {}
@@ -312,7 +342,7 @@ export default function NewOrderPage() {
           </h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium mb-1">
                 ФИО клиента
                 {orderType === 'repair' && <span className="text-red-500"> *</span>}
@@ -320,35 +350,27 @@ export default function NewOrderPage() {
               </label>
               <input
                 value={clientName}
-                onChange={e => setClientName(e.target.value)}
+                onChange={e => { setClientName(e.target.value); setClientSelected(false) }}
                 className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="Иванов Иван Иванович"
                 required={orderType === 'repair'}
+                autoComplete="off"
               />
+              {!clientSelected && (nameResults?.length ?? 0) > 0 && (
+                <ClientDropdown results={nameResults!} onPick={pickClient} />
+              )}
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-sm font-medium mb-1">Телефон</label>
               <input
                 value={clientPhone}
-                onChange={e => setClientPhone(formatPhone(e.target.value))}
+                onChange={e => { setClientPhone(formatPhone(e.target.value)); setClientSelected(false) }}
                 className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="+7 (999) 999-99-99"
+                autoComplete="off"
               />
-              {clientResults && clientResults.length > 0 && (
-                <div className="mt-1 border rounded-lg bg-background shadow-sm text-sm">
-                  <div className="px-3 py-1.5 text-xs text-muted-foreground border-b">Существующие клиенты:</div>
-                  {clientResults.map((c: { _id: string; name: string; phone?: string; totalOrders: number }) => (
-                    <button
-                      key={c._id}
-                      type="button"
-                      onClick={() => { setClientName(c.name); setClientPhone(c.phone ?? clientPhone) }}
-                      className="w-full text-left px-3 py-2 hover:bg-accent transition"
-                    >
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">{c.phone} · {c.totalOrders} заказов</div>
-                    </button>
-                  ))}
-                </div>
+              {!clientSelected && (phoneResults?.length ?? 0) > 0 && (
+                <ClientDropdown results={phoneResults!} onPick={pickClient} />
               )}
             </div>
             <div>
@@ -894,6 +916,30 @@ export default function NewOrderPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function ClientDropdown({ results, onPick }: { results: ClientHitProps[]; onPick: (c: ClientHitProps) => void }) {
+  return (
+    <div className="absolute z-50 left-0 right-0 mt-1 border rounded-xl bg-background shadow-lg text-sm overflow-hidden">
+      <div className="px-3 py-1.5 text-xs text-muted-foreground bg-muted/50 border-b font-medium">
+        Найдено клиентов: {results.length}
+      </div>
+      {results.map(c => (
+        <button
+          key={c._id}
+          type="button"
+          onMouseDown={e => { e.preventDefault(); onPick(c) }}
+          className="w-full text-left px-3 py-2.5 hover:bg-accent transition flex items-center justify-between gap-3 border-b last:border-0"
+        >
+          <div>
+            <div className="font-medium">{c.name}</div>
+            {c.phone && <div className="text-xs text-muted-foreground mt-0.5">{c.phone}</div>}
+          </div>
+          <div className="text-xs text-muted-foreground shrink-0">{c.totalOrders} зак.</div>
+        </button>
+      ))}
     </div>
   )
 }
