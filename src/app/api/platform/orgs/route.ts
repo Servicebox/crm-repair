@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
 import { connectToDatabase } from '@/lib/mongodb'
+import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
+import { getUserModel } from '@/models/User'
 import Company from '@/models/Company'
-import User from '@/models/User'
 import mongoose from 'mongoose'
 
 function isPlatformOwner(email: string | null | undefined) {
@@ -21,21 +22,32 @@ export async function GET() {
   await connectToDatabase()
   const companies = await Company.find().sort({ createdAt: -1 }).lean()
 
-  // Single aggregation to count users per company instead of N queries
-  const companiesWithUsers = await User.aggregate([
-    { $group: { _id: '$companyId', count: { $sum: 1 } } },
-  ])
-  const userCountMap = new Map(companiesWithUsers.map(r => [r._id?.toString(), r.count as number]))
+  const defaultDb = getDefaultDbName()
 
-  const enriched = companies.map(c => ({
-    ...c,
-    userCount: userCountMap.get(c._id.toString()) ?? 0,
+  // Count users per company from the correct DB (tenant or default)
+  const enriched = await Promise.all(companies.map(async (c) => {
+    let userCount = 0
+    try {
+      const dbName = (c as { dbName?: string }).dbName
+      if (dbName && dbName !== defaultDb) {
+        const conn = await getTenantConnection(dbName)
+        const TenantUser = getUserModel(conn)
+        userCount = await TenantUser.countDocuments({ companyId: c._id })
+      } else {
+        // Count from default DB
+        const DefaultUser = getUserModel(mongoose.connection)
+        userCount = await DefaultUser.countDocuments({ companyId: c._id })
+      }
+    } catch {
+      userCount = 0
+    }
+    return { ...c, userCount }
   }))
 
   return NextResponse.json({ data: enriched })
 }
 
-// Permanently delete an org and its platform-DB users — only platform owner
+// Permanently delete an org and all its data — only platform owner
 export async function DELETE(req: NextRequest) {
   const session = await auth()
   if (!session?.user?.email || !isPlatformOwner(session.user.email)) return forbidden()
@@ -47,10 +59,40 @@ export async function DELETE(req: NextRequest) {
   }
 
   await connectToDatabase()
-  const company = await Company.findByIdAndDelete(id).lean()
+  const company = await Company.findById(id).lean() as ({ dbName?: string; _id: mongoose.Types.ObjectId } & Record<string, unknown>) | null
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await User.deleteMany({ companyId: new mongoose.Types.ObjectId(id) })
+  const defaultDb = getDefaultDbName()
+  const tenantDb = company.dbName
+
+  // Check how many other companies share the same tenant DB
+  const sharedCount = tenantDb
+    ? await Company.countDocuments({ _id: { $ne: company._id }, dbName: tenantDb })
+    : 0
+
+  // Delete the company record
+  await Company.findByIdAndDelete(id)
+
+  if (tenantDb && tenantDb !== defaultDb && sharedCount === 0) {
+    // Drop the entire tenant database — no other company uses it
+    try {
+      const conn = await getTenantConnection(tenantDb)
+      await conn.dropDatabase()
+    } catch {
+      // Non-fatal: DB may not exist yet
+    }
+  } else if (tenantDb) {
+    // Shared DB or default DB — only delete users belonging to this company
+    try {
+      const conn = tenantDb !== defaultDb
+        ? await getTenantConnection(tenantDb)
+        : mongoose.connection
+      const TenantUser = getUserModel(conn)
+      await TenantUser.deleteMany({ companyId: company._id })
+    } catch {
+      // Non-fatal
+    }
+  }
 
   return NextResponse.json({ data: { deleted: id } })
 }

@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Building2, Users, Globe, RefreshCw, Loader2, Terminal,
   CheckCircle, XCircle, Calendar, Mail, ShieldOff, ShieldCheck,
-  CreditCard, Star, AlertTriangle, Zap, Percent,
+  CreditCard, Star, AlertTriangle, Zap, Percent, Trash2, Database,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -54,6 +54,9 @@ export default function PlatformPage() {
   const [logsLoading, setLogsLoading] = useState(false)
   const [logs, setLogs] = useState<string | null>(null)
   const [logsError, setLogsError] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<OrgRecord | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const { data: orgs = [], isLoading, refetch, isFetching } = useQuery<OrgRecord[]>({
     queryKey: ['platform-orgs'],
@@ -78,6 +81,26 @@ export default function PlatformPage() {
     retry: false,
     enabled: tab === 'billing',
   })
+
+  async function handleDeleteOrg() {
+    if (!deleteTarget || deleteConfirm !== deleteTarget.name) return
+    setDeleteLoading(true)
+    try {
+      const res = await fetch(`/api/platform/orgs?id=${deleteTarget._id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const j = await res.json()
+        alert(j.error ?? 'Ошибка удаления')
+        return
+      }
+      queryClient.invalidateQueries({ queryKey: ['platform-orgs'] })
+      setDeleteTarget(null)
+      setDeleteConfirm('')
+    } catch {
+      alert('Ошибка сети')
+    } finally {
+      setDeleteLoading(false)
+    }
+  }
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
@@ -259,18 +282,30 @@ export default function PlatformPage() {
                         }
                         {org.isActive ? 'Заблокировать' : 'Разблокировать'}
                       </button>
+
+                      <button
+                        onClick={() => { setDeleteTarget(org); setDeleteConfirm('') }}
+                        className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 transition"
+                        title="Удалить организацию навсегда"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Удалить
+                      </button>
                     </div>
                   </div>
 
                   <div className="mt-3 pt-3 border-t flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
                     <span className="flex items-center gap-1.5">
-                      <Users className="w-3 h-3" />{org.userCount} польз.
+                      <Users className="w-3 h-3" />
+                      <span>{org.userCount} польз.</span>
                     </span>
                     <span className="flex items-center gap-1.5">
                       <Calendar className="w-3 h-3" />
                       {new Date(org.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}
                     </span>
-                    <span className="font-mono opacity-60">БД: {org.dbName}</span>
+                    <span className="flex items-center gap-1.5 font-mono bg-muted px-2 py-0.5 rounded">
+                      <Database className="w-3 h-3 shrink-0" />{org.dbName}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -371,6 +406,69 @@ export default function PlatformPage() {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Delete confirmation dialog */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-background rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center">
+                <Trash2 className="w-5 h-5 text-red-600" />
+              </div>
+              <div>
+                <div className="font-semibold text-base">Удалить организацию</div>
+                <div className="text-xs text-muted-foreground">Это действие необратимо</div>
+              </div>
+            </div>
+
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4 text-sm text-red-700 dark:text-red-300 space-y-1">
+              <div className="font-semibold">Будет удалено навсегда:</div>
+              <ul className="list-disc ml-4 space-y-0.5 text-xs">
+                <li>Организация <strong>{deleteTarget.name}</strong></li>
+                <li>База данных <strong className="font-mono">{deleteTarget.dbName}</strong></li>
+                <li>Все {deleteTarget.userCount} пользователей, заказы, клиенты, финансы</li>
+              </ul>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-1.5">
+                Введите название организации для подтверждения:
+              </label>
+              <div className="text-xs text-muted-foreground mb-2 font-mono bg-muted px-2 py-1 rounded">
+                {deleteTarget.name}
+              </div>
+              <input
+                type="text"
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                placeholder="Введите название точно как выше"
+                className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-red-500 focus:border-red-400"
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setDeleteTarget(null); setDeleteConfirm('') }}
+                className="flex-1 px-4 py-2 border rounded-lg text-sm hover:bg-accent transition"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={handleDeleteOrg}
+                disabled={deleteConfirm !== deleteTarget.name || deleteLoading}
+                className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2"
+              >
+                {deleteLoading
+                  ? <Loader2 className="w-4 h-4 animate-spin" />
+                  : <Trash2 className="w-4 h-4" />
+                }
+                Удалить навсегда
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
