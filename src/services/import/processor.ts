@@ -247,42 +247,42 @@ export async function runImport(jobId: string, companyId: string, dbName: string
         error_code: 'VALIDATION_ERROR',
       })
       failed++
-      return
+    } else {
+      try {
+        let result: 'created' | 'updated' | 'skipped'
+
+        switch (job.target_entity) {
+          case 'clients':
+            result = await upsertClient(models, data, job.duplicate_strategy, companyId)
+            break
+          case 'products':
+            result = await upsertProduct(models, data, job.duplicate_strategy)
+            break
+          case 'orders':
+            result = await upsertOrder(models, data, job.duplicate_strategy, companyId)
+            break
+          default:
+            throw new Error(`Неизвестная сущность: ${job.target_entity}`)
+        }
+
+        if (result === 'skipped') {
+          duplicates_skipped++
+        } else {
+          successful++
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : String(err)
+        batchErrors.push({
+          row_number: index + 2,
+          source_data: row,
+          error_message: message,
+          error_code: 'IMPORT_ERROR',
+        })
+        failed++
+      }
     }
 
-    try {
-      let result: 'created' | 'updated' | 'skipped'
-
-      switch (job.target_entity) {
-        case 'clients':
-          result = await upsertClient(models, data, job.duplicate_strategy, companyId)
-          break
-        case 'products':
-          result = await upsertProduct(models, data, job.duplicate_strategy)
-          break
-        case 'orders':
-          result = await upsertOrder(models, data, job.duplicate_strategy, companyId)
-          break
-        default:
-          throw new Error(`Неизвестная сущность: ${job.target_entity}`)
-      }
-
-      if (result === 'skipped') {
-        duplicates_skipped++
-      } else {
-        successful++
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err)
-      batchErrors.push({
-        row_number: index + 2,
-        source_data: row,
-        error_message: message,
-        error_code: 'IMPORT_ERROR',
-      })
-      failed++
-    }
-
+    // Always increment processed (including rows with validation errors)
     // Flush progress to DB periodically (not on every row — reduces write pressure)
     if (++processed % PROGRESS_FLUSH_EVERY === 0) {
       const errorsToAdd = batchErrors.splice(0)

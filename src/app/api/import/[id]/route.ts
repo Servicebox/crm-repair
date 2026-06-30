@@ -23,7 +23,7 @@ export async function GET(
     _id: params.id,
     organization_id: new mongoose.Types.ObjectId(session.user.companyId),
   })
-    .select('-errors')  // errors can be large; use /errors endpoint instead
+    .select('-import_errors')  // errors can be large; use /errors endpoint instead
     .lean()
 
   if (!job) return NextResponse.json({ success: false, error: 'Не найден' }, { status: 404 })

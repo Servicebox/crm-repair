@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 interface ProgressState {
   status: string
@@ -27,6 +27,11 @@ const STATUS_LABELS: Record<string, string> = {
 export function ImportProgress({ jobId, onComplete }: ImportProgressProps) {
   const [state, setState] = useState<ProgressState | null>(null)
   const [error, setError] = useState<string | null>(null)
+  // Keep onComplete in a ref so the EventSource effect doesn't need it as a dependency.
+  // Without this, an inline arrow prop recreates the callback every render,
+  // causing the effect to close and reopen the SSE connection on every re-render.
+  const onCompleteRef = useRef(onComplete)
+  useEffect(() => { onCompleteRef.current = onComplete }, [onComplete])
 
   useEffect(() => {
     if (!jobId) return
@@ -39,7 +44,7 @@ export function ImportProgress({ jobId, onComplete }: ImportProgressProps) {
         setState(data)
         if (['completed', 'failed', 'cancelled'].includes(data.status)) {
           es.close()
-          onComplete?.(data)
+          onCompleteRef.current?.(data)
         }
       } catch { /* skip malformed frame */ }
     }
@@ -50,7 +55,7 @@ export function ImportProgress({ jobId, onComplete }: ImportProgressProps) {
     }
 
     return () => es.close()
-  }, [jobId, onComplete])
+  }, [jobId]) // onComplete intentionally excluded — stable via ref
 
   if (error) {
     return (

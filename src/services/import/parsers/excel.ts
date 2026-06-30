@@ -87,10 +87,13 @@ export async function streamExcel(
   signal?: AbortSignal
 ): Promise<{ processed: number; failed: number }> {
   assertReadable(filePath)
+  // When sheetName is empty, omit the `sheets` option so XLSX loads all sheets.
+  // Passing `sheets: ''` causes SheetJS to look for a sheet named '' (not found),
+  // leaving workbook.Sheets empty and resulting in 0 processed rows.
   const workbook = XLSX.readFile(filePath, {
     type: 'file',
     cellDates: true,
-    sheets: sheetName,
+    ...(sheetName ? { sheets: sheetName } : {}),
   })
 
   const resolvedSheet = sheetName && workbook.SheetNames.includes(sheetName)

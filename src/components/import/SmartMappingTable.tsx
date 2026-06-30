@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TARGET_FIELDS, getFieldsForEntity } from '@/services/import/fieldDefinitions'
 import { TRANSFORMER_OPTIONS } from '@/services/import/transformers'
 import type { IColumnAnalysis, IFieldMapping } from '@/models/ImportJob'
@@ -30,6 +30,14 @@ export function SmartMappingTable({ columns, entity, onChange }: SmartMappingTab
       is_required: false,
     }))
   )
+
+  // Notify parent of initial auto-suggested mapping on mount.
+  // Without this, the parent mapping stays [] and the "Confirm" button stays disabled
+  // until the user manually interacts with the table or clicks "Auto-fill".
+  useEffect(() => {
+    onChange(rows.filter(r => r.target_field && r.target_field !== SKIP_VALUE))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // intentionally run once on mount only
 
   const update = (index: number, patch: Partial<IFieldMapping>) => {
     const next = rows.map((r, i) => i === index ? { ...r, ...patch } : r)

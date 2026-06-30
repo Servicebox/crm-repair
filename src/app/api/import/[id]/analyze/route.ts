@@ -77,8 +77,12 @@ export async function POST(
       sample = result.sample
       total_rows = result.total_rows
       sheets = result.sheets
-      if (sheetName) {
-        await ImportJob.updateOne({ _id: job._id }, { $set: { selected_sheet: sheetName } })
+      // Always persist the resolved sheet name so the processor can load the correct sheet.
+      // Without this, selected_sheet stays undefined and XLSX.readFile receives sheets:''
+      // which causes SheetJS to parse no sheets, resulting in 0 processed rows.
+      const resolvedSheet = (sheetName && sheets.includes(sheetName)) ? sheetName : sheets[0]
+      if (resolvedSheet) {
+        await ImportJob.updateOne({ _id: job._id }, { $set: { selected_sheet: resolvedSheet } })
       }
     }
 
