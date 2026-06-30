@@ -12,6 +12,11 @@ export interface IChatMessage extends Document {
   text: string
   attachments?: Array<{ name: string; url: string; type: string }>
   readBy: mongoose.Types.ObjectId[]
+  replyTo?: {
+    messageId: mongoose.Types.ObjectId
+    userName: string
+    text: string
+  }
   createdAt: Date
   updatedAt: Date
 }
@@ -28,6 +33,11 @@ const ChatMessageSchema = new Schema<IChatMessage>(
     text: { type: String, required: true, trim: true },
     attachments: [{ name: String, url: String, type: String }],
     readBy: [{ type: Schema.Types.ObjectId, ref: 'User' }],
+    replyTo: {
+      messageId: { type: Schema.Types.ObjectId },
+      userName: { type: String },
+      text: { type: String },
+    },
   },
   { timestamps: true }
 )

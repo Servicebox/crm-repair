@@ -11,6 +11,11 @@ import { NextResponse } from 'next/server'
 const PostMessageSchema = z.object({
   room: z.string().max(100).optional(),
   text: z.string().min(1).max(4000),
+  replyTo: z.object({
+    messageId: z.string(),
+    userName: z.string().max(200),
+    text: z.string().max(500),
+  }).optional(),
 })
 
 function unauthorized() {
@@ -115,6 +120,13 @@ export async function POST(req: NextRequest) {
       companyId,
       companyName,
       text: data.text,
+      ...(data.replyTo ? {
+        replyTo: {
+          messageId: new mongoose.Types.ObjectId(data.replyTo.messageId),
+          userName: data.replyTo.userName,
+          text: data.replyTo.text,
+        }
+      } : {}),
     })
 
     return NextResponse.json({ success: true, data: message }, { status: 201 })
