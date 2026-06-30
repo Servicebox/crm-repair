@@ -81,10 +81,10 @@ export async function DELETE(req: NextRequest) {
     } catch {
       // Non-fatal: DB may not exist yet
     }
-  } else if (tenantDb) {
-    // Shared DB or default DB — only delete users belonging to this company
+  } else {
+    // Shared DB, default DB, or company has no dbName — delete users belonging to this company
     try {
-      const conn = tenantDb !== defaultDb
+      const conn = (tenantDb && tenantDb !== defaultDb)
         ? await getTenantConnection(tenantDb)
         : mongoose.connection
       const TenantUser = getUserModel(conn)
