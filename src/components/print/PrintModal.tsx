@@ -1,15 +1,19 @@
 'use client'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { X, Printer, FileText, Tag, Receipt } from 'lucide-react'
 import QRCode from 'qrcode'
 import { formatDate, formatDateTime, formatCurrency } from '@/lib/utils'
+
+// ---------- constants ----------
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'Принят', diagnostics: 'Диагностика', waiting_approval: 'Ожидает согласования',
   waiting_parts: 'Ожидает запчасти', in_repair: 'В ремонте', quality_check: 'Проверка качества',
   ready: 'Готов к выдаче', issued: 'Выдан', cancelled: 'Отменён',
 }
+void STATUS_LABELS // used in templates if needed
 
 const CHECKLIST_ITEMS = [
   { id: 'screen', label: 'Экран / стекло' }, { id: 'body', label: 'Корпус / царапины' },
@@ -27,6 +31,39 @@ const DOC_TYPES = [
   { type: 'label', label: 'Этикетка 40×30', icon: Tag },
 ]
 
+// Injected into <head> while modal is open.
+// Portal (#crm-print-portal) is a direct child of <body>, so its ID selector
+// (specificity 1,0,0) overrides "body > *" (specificity 0,0,2) and stays visible.
+const PRINT_CSS = `
+@media print {
+  body > * { display: none !important; }
+  #crm-print-portal {
+    display: block !important;
+    position: absolute !important;
+    top: 0 !important; left: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+    background: white !important;
+  }
+  #crm-print-toolbar { display: none !important; }
+  #crm-print-scroll {
+    overflow: visible !important;
+    height: auto !important;
+    background: white !important;
+    padding: 0 !important;
+  }
+  #crm-print-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+  }
+  @page { margin: 10mm; }
+}
+`
+
+// ---------- types ----------
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Order = Record<string, any>
 
@@ -38,21 +75,18 @@ interface PrintModalProps {
   initialType?: string
 }
 
+// ---------- document templates ----------
+
 function DocumentContent({
   order, company, labelSettings, docTemplates, printType, qrDataUrl, trackUrl,
 }: {
-  order: Order
-  company: Order
-  labelSettings: Order
-  docTemplates: Order
-  printType: string
-  qrDataUrl: string
-  trackUrl: string
+  order: Order; company: Order; labelSettings: Order; docTemplates: Order
+  printType: string; qrDataUrl: string; trackUrl: string
 }) {
   const totalPaid = ((order.payments as { amount: number }[]) ?? []).reduce((s, p) => s + p.amount, 0)
   const remaining = Math.max(0, ((order.finalCost as number) ?? 0) - totalPaid)
 
-  // ---------- LABEL ----------
+  // --- LABEL 40×30 ---
   if (printType === 'label') {
     const lbl = (labelSettings ?? {}) as Record<string, unknown>
     return (
@@ -82,7 +116,7 @@ function DocumentContent({
     )
   }
 
-  // ---------- ACT ПРИЁМКИ ----------
+  // --- АКТ ПРИЁМКИ ---
   if (printType === 'act') {
     const tpl = ((docTemplates as Record<string, unknown>)?.acceptance ?? {}) as Record<string, unknown>
     const showLogo = tpl.showLogo !== false
@@ -90,18 +124,10 @@ function DocumentContent({
     const showQr = tpl.showQr !== false
     const showTearOff = tpl.showTearOff !== false
     return (
-      <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000' }}>
-        <style>{`
-          .prow { display: flex; justify-content: space-between; margin-bottom: 3px; }
-          .pdivider { border-top: 1px solid #000; margin: 8px 0; }
-          .pdashed { border-top: 1px dashed #000; margin: 8px 0; }
-        `}</style>
-        <div style={{ maxWidth: 680, margin: '0 auto', padding: '16px' }}>
-          {tpl.headerNote && (
-            <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>
-              {tpl.headerNote as string}
-            </div>
-          )}
+      <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000', padding: 16 }}>
+        <style>{`.prow{display:flex;justify-content:space-between;margin-bottom:3px}.pdivider{border-top:1px solid #000;margin:8px 0}.pdashed{border-top:1px dashed #000;margin:8px 0}`}</style>
+        <div style={{ maxWidth: 680, margin: '0 auto' }}>
+          {tpl.headerNote && <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>{tpl.headerNote as string}</div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               {showLogo && company.logo && <img src={company.logo as string} alt="" style={{ height: 36, marginBottom: 4 }} />}
@@ -159,15 +185,9 @@ function DocumentContent({
             </div>
           )}
           <div className="pdivider" />
-          {(order.estimatedCost as number) > 0 && (
-            <div className="prow"><span>Предварительная стоимость:</span><span>{formatCurrency(order.estimatedCost as number)}</span></div>
-          )}
-          {(order.prepayment as number) > 0 && (
-            <div className="prow"><span>Предоплата:</span><span>{formatCurrency(order.prepayment as number)}</span></div>
-          )}
-          <div className="prow" style={{ fontWeight: 'bold', fontSize: 13 }}>
-            <span>Итого к оплате:</span><span>{formatCurrency(order.finalCost as number)}</span>
-          </div>
+          {(order.estimatedCost as number) > 0 && <div className="prow"><span>Предварительная стоимость:</span><span>{formatCurrency(order.estimatedCost as number)}</span></div>}
+          {(order.prepayment as number) > 0 && <div className="prow"><span>Предоплата:</span><span>{formatCurrency(order.prepayment as number)}</span></div>}
+          <div className="prow" style={{ fontWeight: 'bold', fontSize: 13 }}><span>Итого к оплате:</span><span>{formatCurrency(order.finalCost as number)}</span></div>
           <div><b>Гарантия:</b> {order.warrantyDays as number} дней после выдачи</div>
           <div className="pdivider" />
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
@@ -215,7 +235,7 @@ function DocumentContent({
     )
   }
 
-  // ---------- АКТ О ВЫПОЛНЕННЫХ РАБОТАХ ----------
+  // --- АКТ О ВЫПОЛНЕННЫХ РАБОТАХ ---
   if (printType === 'works-act') {
     const wtpl = ((docTemplates as Record<string, unknown>)?.worksAct ?? {}) as Record<string, unknown>
     const wShowLogo = wtpl.showLogo !== false
@@ -224,25 +244,13 @@ function DocumentContent({
     const wShowQr = wtpl.showQr !== false
     const worksTotal = ((order.works as { price: number; discount?: number }[]) ?? []).reduce((s, w) => s + w.price - (w.discount ?? 0), 0)
     const partsTotal = ((order.parts as { price: number; quantity: number }[]) ?? []).reduce((s, p) => s + p.price * p.quantity, 0)
-    const totalPaidForAct = ((order.payments as { amount: number }[]) ?? []).reduce((s, p) => s + p.amount, 0)
-    const remainingForAct = Math.max(0, ((order.finalCost as number) ?? 0) - totalPaidForAct)
+    const totalPaidW = ((order.payments as { amount: number }[]) ?? []).reduce((s, p) => s + p.amount, 0)
+    const remainingW = Math.max(0, ((order.finalCost as number) ?? 0) - totalPaidW)
     return (
-      <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000' }}>
-        <style>{`
-          .prow { display: flex; justify-content: space-between; margin-bottom: 2px; }
-          .pdivider { border-top: 1px solid #000; margin: 8px 0; }
-          .pdashed { border-top: 1px dashed #888; margin: 8px 0; }
-          .ptable { border-collapse: collapse; width: 100%; }
-          .ptable th { background: #f0f0f0; border: 1px solid #ccc; padding: 4px 6px; font-size: 11px; text-align: left; }
-          .ptable td { border: 1px solid #ccc; padding: 4px 6px; font-size: 11px; }
-          .ptable .right { text-align: right; }
-        `}</style>
-        <div style={{ maxWidth: 700, margin: '0 auto', padding: '16px' }}>
-          {wtpl.headerNote && (
-            <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>
-              {wtpl.headerNote as string}
-            </div>
-          )}
+      <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000', padding: 16 }}>
+        <style>{`.prow{display:flex;justify-content:space-between;margin-bottom:2px}.pdivider{border-top:1px solid #000;margin:8px 0}.pdashed{border-top:1px dashed #888;margin:8px 0}.ptable{border-collapse:collapse;width:100%}.ptable th{background:#f0f0f0;border:1px solid #ccc;padding:4px 6px;font-size:11px;text-align:left}.ptable td{border:1px solid #ccc;padding:4px 6px;font-size:11px}.right{text-align:right}`}</style>
+        <div style={{ maxWidth: 700, margin: '0 auto' }}>
+          {wtpl.headerNote && <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '6px 10px', marginBottom: 10, fontSize: 11 }}>{wtpl.headerNote as string}</div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
             <div>
               {wShowLogo && company.logo && <img src={company.logo as string} alt="" style={{ height: 36, marginBottom: 4 }} />}
@@ -280,37 +288,19 @@ function DocumentContent({
             {order.deviceSerial && <span> · S/N: {order.deviceSerial as string}</span>}
             {order.deviceImei && <span> · IMEI: {order.deviceImei as string}</span>}
           </div>
-          <div style={{ marginBottom: 8 }}>
-            <span style={{ fontWeight: 'bold' }}>Неисправность: </span>{order.defectDescription as string}
-          </div>
-          {order.masterComment && (
-            <div style={{ marginBottom: 8 }}>
-              <span style={{ fontWeight: 'bold' }}>Заключение мастера: </span>{order.masterComment as string}
-            </div>
-          )}
+          <div style={{ marginBottom: 8 }}><span style={{ fontWeight: 'bold' }}>Неисправность: </span>{order.defectDescription as string}</div>
+          {order.masterComment && <div style={{ marginBottom: 8 }}><span style={{ fontWeight: 'bold' }}>Заключение мастера: </span>{order.masterComment as string}</div>}
           <div className="pdivider" />
           {((order.works as unknown[]) ?? []).length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Выполненные работы:</div>
               <table className="ptable">
-                <thead><tr>
-                  <th style={{ width: 24 }}>№</th><th>Наименование работы</th>
-                  <th className="right" style={{ width: 80 }}>Цена, ₽</th>
-                  <th className="right" style={{ width: 70 }}>Скидка, ₽</th>
-                  <th className="right" style={{ width: 80 }}>Сумма, ₽</th>
-                </tr></thead>
+                <thead><tr><th style={{ width: 24 }}>№</th><th>Наименование работы</th><th className="right" style={{ width: 80 }}>Цена, ₽</th><th className="right" style={{ width: 70 }}>Скидка, ₽</th><th className="right" style={{ width: 80 }}>Сумма, ₽</th></tr></thead>
                 <tbody>
                   {((order.works as { name: string; price: number; discount?: number; masterName?: string }[]) ?? []).map((w, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td>
-                      <td>{w.name}{w.masterName ? <span style={{ color: '#666', fontSize: 10 }}> ({w.masterName})</span> : ''}</td>
-                      <td className="right">{w.price.toLocaleString('ru-RU')}</td>
-                      <td className="right">{w.discount ? w.discount.toLocaleString('ru-RU') : '—'}</td>
-                      <td className="right">{(w.price - (w.discount ?? 0)).toLocaleString('ru-RU')}</td>
-                    </tr>
+                    <tr key={i}><td>{i + 1}</td><td>{w.name}{w.masterName ? <span style={{ color: '#666', fontSize: 10 }}> ({w.masterName})</span> : ''}</td><td className="right">{w.price.toLocaleString('ru-RU')}</td><td className="right">{w.discount ? w.discount.toLocaleString('ru-RU') : '—'}</td><td className="right">{(w.price - (w.discount ?? 0)).toLocaleString('ru-RU')}</td></tr>
                   ))}
-                  <tr><td colSpan={4} style={{ textAlign: 'right', fontWeight: 'bold' }}>Итого работы:</td>
-                    <td className="right" style={{ fontWeight: 'bold' }}>{worksTotal.toLocaleString('ru-RU')}</td></tr>
+                  <tr><td colSpan={4} style={{ textAlign: 'right', fontWeight: 'bold' }}>Итого работы:</td><td className="right" style={{ fontWeight: 'bold' }}>{worksTotal.toLocaleString('ru-RU')}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -319,34 +309,19 @@ function DocumentContent({
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontWeight: 'bold', marginBottom: 4 }}>Использованные материалы:</div>
               <table className="ptable">
-                <thead><tr>
-                  <th style={{ width: 24 }}>№</th><th>Наименование</th>
-                  <th className="right" style={{ width: 50 }}>Кол-во</th>
-                  <th className="right" style={{ width: 80 }}>Цена, ₽</th>
-                  <th className="right" style={{ width: 80 }}>Сумма, ₽</th>
-                </tr></thead>
+                <thead><tr><th style={{ width: 24 }}>№</th><th>Наименование</th><th className="right" style={{ width: 50 }}>Кол-во</th><th className="right" style={{ width: 80 }}>Цена, ₽</th><th className="right" style={{ width: 80 }}>Сумма, ₽</th></tr></thead>
                 <tbody>
                   {((order.parts as { name: string; price: number; quantity: number }[]) ?? []).map((p, i) => (
-                    <tr key={i}>
-                      <td>{i + 1}</td><td>{p.name}</td>
-                      <td className="right">{p.quantity} шт.</td>
-                      <td className="right">{p.price.toLocaleString('ru-RU')}</td>
-                      <td className="right">{(p.price * p.quantity).toLocaleString('ru-RU')}</td>
-                    </tr>
+                    <tr key={i}><td>{i + 1}</td><td>{p.name}</td><td className="right">{p.quantity} шт.</td><td className="right">{p.price.toLocaleString('ru-RU')}</td><td className="right">{(p.price * p.quantity).toLocaleString('ru-RU')}</td></tr>
                   ))}
-                  <tr><td colSpan={4} style={{ textAlign: 'right', fontWeight: 'bold' }}>Итого материалы:</td>
-                    <td className="right" style={{ fontWeight: 'bold' }}>{partsTotal.toLocaleString('ru-RU')}</td></tr>
+                  <tr><td colSpan={4} style={{ textAlign: 'right', fontWeight: 'bold' }}>Итого материалы:</td><td className="right" style={{ fontWeight: 'bold' }}>{partsTotal.toLocaleString('ru-RU')}</td></tr>
                 </tbody>
               </table>
             </div>
           )}
           <div className="pdivider" />
-          {(order.discount as number) > 0 && (
-            <div className="prow"><span>Скидка:</span><span>−{formatCurrency(order.discount as number)}</span></div>
-          )}
-          <div className="prow" style={{ fontWeight: 'bold', fontSize: 14 }}>
-            <span>ИТОГО К ОПЛАТЕ:</span><span>{formatCurrency(order.finalCost as number)}</span>
-          </div>
+          {(order.discount as number) > 0 && <div className="prow"><span>Скидка:</span><span>−{formatCurrency(order.discount as number)}</span></div>}
+          <div className="prow" style={{ fontWeight: 'bold', fontSize: 14 }}><span>ИТОГО К ОПЛАТЕ:</span><span>{formatCurrency(order.finalCost as number)}</span></div>
           {((order.payments as unknown[]) ?? []).length > 0 && (
             <>
               <div className="pdashed" />
@@ -357,15 +332,9 @@ function DocumentContent({
                   <span>{formatCurrency(p.amount)}</span>
                 </div>
               ))}
-              <div className="prow" style={{ fontWeight: 'bold' }}>
-                <span>Итого оплачено:</span><span>{formatCurrency(totalPaidForAct)}</span>
-              </div>
-              {remainingForAct > 0 && (
-                <div className="prow" style={{ color: 'red' }}><span>Остаток к оплате:</span><span>{formatCurrency(remainingForAct)}</span></div>
-              )}
-              {remainingForAct === 0 && (
-                <div className="prow" style={{ color: 'green', fontWeight: 'bold' }}><span>✓ Оплачено полностью</span></div>
-              )}
+              <div className="prow" style={{ fontWeight: 'bold' }}><span>Итого оплачено:</span><span>{formatCurrency(totalPaidW)}</span></div>
+              {remainingW > 0 && <div className="prow" style={{ color: 'red' }}><span>Остаток к оплате:</span><span>{formatCurrency(remainingW)}</span></div>}
+              {remainingW === 0 && <div className="prow" style={{ color: 'green', fontWeight: 'bold' }}><span>✓ Оплачено полностью</span></div>}
             </>
           )}
           <div className="pdivider" />
@@ -401,27 +370,17 @@ function DocumentContent({
     )
   }
 
-  // ---------- КВИТАНЦИЯ (default) ----------
+  // --- КВИТАНЦИЯ (default) ---
   const rtpl = ((docTemplates as Record<string, unknown>)?.receipt ?? {}) as Record<string, unknown>
   const rShowLogo = rtpl.showLogo !== false
   const rShowRequisites = rtpl.showRequisites !== false
   const rShowQr = rtpl.showQr !== false
   const rShowTearOff = rtpl.showTearOff !== false
   return (
-    <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000' }}>
-      <style>{`
-        .prow { display: flex; justify-content: space-between; padding: 2px 0; }
-        .pbold { font-weight: bold; }
-        .pdivider { border-top: 1px solid #000; margin: 6px 0; }
-        .psmall { font-size: 10px; color: #444; }
-        .pcenter { text-align: center; }
-      `}</style>
-      <div style={{ maxWidth: 520, margin: '0 auto', padding: '16px' }}>
-        {rtpl.headerNote && (
-          <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '5px 8px', marginBottom: 8, fontSize: 10 }}>
-            {rtpl.headerNote as string}
-          </div>
-        )}
+    <div style={{ background: 'white', fontFamily: 'Arial, sans-serif', fontSize: 12, color: '#000', padding: 16 }}>
+      <style>{`.prow{display:flex;justify-content:space-between;padding:2px 0}.pbold{font-weight:bold}.pdivider{border-top:1px solid #000;margin:6px 0}.psmall{font-size:10px;color:#444}.pcenter{text-align:center}`}</style>
+      <div style={{ maxWidth: 520, margin: '0 auto' }}>
+        {rtpl.headerNote && <div style={{ background: '#f9f9f9', border: '1px solid #eee', borderRadius: 4, padding: '5px 8px', marginBottom: 8, fontSize: 10 }}>{rtpl.headerNote as string}</div>}
         <div className="pcenter" style={{ marginBottom: 8 }}>
           {rShowLogo && company.logo && <img src={company.logo as string} alt="" style={{ height: 40, marginBottom: 4 }} />}
           <div className="pbold" style={{ fontSize: 15 }}>{company.name as string}</div>
@@ -431,12 +390,8 @@ function DocumentContent({
         </div>
         <div className="pdivider" />
         <div className="pcenter pbold" style={{ fontSize: 14 }}>КВИТАНЦИЯ К ДОГОВОРУ НА ОКАЗАНИЕ УСЛУГ</div>
-        <div className="prow" style={{ marginTop: 4 }}>
-          <span>№ заказа:</span><span className="pbold" style={{ fontFamily: 'monospace' }}>{order.number as string}</span>
-        </div>
-        <div className="prow">
-          <span>Дата приёмки:</span><span>{formatDateTime((order.acceptedAt ?? order.createdAt) as string)}</span>
-        </div>
+        <div className="prow" style={{ marginTop: 4 }}><span>№ заказа:</span><span className="pbold" style={{ fontFamily: 'monospace' }}>{order.number as string}</span></div>
+        <div className="prow"><span>Дата приёмки:</span><span>{formatDateTime((order.acceptedAt ?? order.createdAt) as string)}</span></div>
         {order.dueDate && <div className="prow"><span>Плановая готовность:</span><span>{formatDate(order.dueDate as string)}</span></div>}
         <div className="pdivider" />
         <div className="pbold" style={{ marginBottom: 2 }}>Заказчик:</div>
@@ -465,23 +420,13 @@ function DocumentContent({
             <div className="pdivider" />
           </>
         )}
-        {(order.estimatedCost as number) > 0 && (
-          <div className="prow"><span>Предварительная оценка:</span><span>{formatCurrency(order.estimatedCost as number)}</span></div>
-        )}
-        {(order.discount as number) > 0 && (
-          <div className="prow"><span>Скидка:</span><span>−{formatCurrency(order.discount as number)}</span></div>
-        )}
-        {(order.prepayment as number) > 0 && (
-          <div className="prow"><span>Предоплата:</span><span>{formatCurrency(order.prepayment as number)}</span></div>
-        )}
-        <div className="prow pbold" style={{ fontSize: 14 }}>
-          <span>ИТОГО к оплате:</span><span>{formatCurrency(order.finalCost as number)}</span>
-        </div>
+        {(order.estimatedCost as number) > 0 && <div className="prow"><span>Предварительная оценка:</span><span>{formatCurrency(order.estimatedCost as number)}</span></div>}
+        {(order.discount as number) > 0 && <div className="prow"><span>Скидка:</span><span>−{formatCurrency(order.discount as number)}</span></div>}
+        {(order.prepayment as number) > 0 && <div className="prow"><span>Предоплата:</span><span>{formatCurrency(order.prepayment as number)}</span></div>}
+        <div className="prow pbold" style={{ fontSize: 14 }}><span>ИТОГО к оплате:</span><span>{formatCurrency(order.finalCost as number)}</span></div>
         {remaining > 0 && <div className="prow"><span>Остаток (к доплате):</span><span>{formatCurrency(remaining)}</span></div>}
         {totalPaid > 0 && totalPaid >= ((order.finalCost as number) ?? 0) && (
-          <div className="prow" style={{ color: 'green', fontWeight: 'bold' }}>
-            <span>✓ ОПЛАЧЕНО:</span><span>{formatCurrency(totalPaid)}</span>
-          </div>
+          <div className="prow" style={{ color: 'green', fontWeight: 'bold' }}><span>✓ ОПЛАЧЕНО:</span><span>{formatCurrency(totalPaid)}</span></div>
         )}
         <div style={{ marginTop: 4 }}><b>Гарантия:</b> {order.warrantyDays as number} дней с даты выдачи</div>
         <div className="pdivider" />
@@ -490,8 +435,8 @@ function DocumentContent({
         ) : (
           <div className="psmall pcenter" style={{ marginBottom: 8 }}>
             Настоящая квитанция является договором-офертой на оказание сервисных услуг.<br />
-            Принятие устройства подтверждает согласие с условиями ремонта.{' '}
-            {company.website && <>Подробнее: {company.website as string}</>}
+            Принятие устройства подтверждает согласие с условиями ремонта.
+            {company.website && <> Подробнее: {company.website as string}</>}
           </div>
         )}
         {rtpl.footerText && <div className="psmall pcenter" style={{ marginBottom: 6, color: '#555' }}>{rtpl.footerText as string}</div>}
@@ -537,117 +482,170 @@ function DocumentContent({
   )
 }
 
-export default function PrintModal({ orderId, order, isOpen, onClose, initialType = 'receipt' }: PrintModalProps) {
+// ---------- modal ----------
+
+export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, initialType = 'receipt' }: PrintModalProps) {
   const [printType, setPrintType] = useState(initialType)
   const [qrDataUrl, setQrDataUrl] = useState('')
-  const docRef = useRef<HTMLDivElement>(null)
+  const [mounted, setMounted] = useState(false)
+
+  // Hydration guard — portal requires browser DOM
+  useEffect(() => { setMounted(true) }, [])
+
+  // Inject print isolation CSS into <head> while modal is open
+  useEffect(() => {
+    if (!isOpen) return
+    const el = document.createElement('style')
+    el.id = 'crm-print-style'
+    el.textContent = PRINT_CSS
+    document.head.appendChild(el)
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.getElementById('crm-print-style')?.remove()
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
+
+  // Sync doc type when modal opens from different entry points
+  useEffect(() => {
+    if (isOpen) setPrintType(initialType)
+  }, [isOpen, initialType])
+
+  // ESC to close
+  useEffect(() => {
+    if (!isOpen) return
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isOpen, onClose])
+
+  // QR code
+  useEffect(() => {
+    if (!order?.number) return
+    const url = `${window.location.origin}/track/${order.number as string}`
+    QRCode.toDataURL(url, { width: 120, margin: 0 }).then(setQrDataUrl)
+  }, [order?.number])
 
   const { data: companyData } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => { const r = await fetch('/api/settings'); return (await r.json()).data },
     enabled: isOpen,
   })
-
   const { data: labelSettings } = useQuery({
     queryKey: ['settings-label'],
     queryFn: async () => { const r = await fetch('/api/settings/label'); return (await r.json()).data ?? {} },
     enabled: isOpen,
   })
-
   const { data: docTemplates } = useQuery({
     queryKey: ['settings-documents'],
     queryFn: async () => { const r = await fetch('/api/settings/documents'); return (await r.json()).data ?? {} },
     enabled: isOpen,
   })
 
-  useEffect(() => {
-    if (!order?.number) return
-    const url = `${window.location.origin}/track/${order.number as string}`
-    QRCode.toDataURL(url, { width: 100, margin: 0 }).then(setQrDataUrl)
-  }, [order?.number])
+  if (!isOpen || !mounted) return null
 
-  useEffect(() => {
-    if (isOpen) setPrintType(initialType)
-  }, [isOpen, initialType])
+  const trackUrl = `${window.location.origin}/track/${order?.number as string}`
+  const isReady = !!(companyData && order)
 
-  useEffect(() => {
-    if (!isOpen) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen, onClose])
+  return createPortal(
+    <div id="crm-print-portal" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.65)' }}>
 
-  if (!isOpen) return null
-
-  const trackUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/track/${order?.number as string}`
-  const isReady = companyData && order
-
-  return (
-    <>
-      {/* CSS to isolate printing to this modal */}
-      <style>{`
-        @media print {
-          body > * { visibility: hidden !important; }
-          #print-modal-root { visibility: visible !important; position: fixed !important; inset: 0 !important; overflow: visible !important; z-index: 9999 !important; }
-          #print-modal-root .print-modal-header { display: none !important; }
-          #print-modal-document { visibility: visible !important; overflow: visible !important; height: auto !important; }
-        }
-      `}</style>
-
-      <div id="print-modal-root" className="fixed inset-0 z-50 flex flex-col bg-black/60 backdrop-blur-sm">
-        {/* Header */}
-        <div className="print-modal-header bg-white border-b px-4 py-2 flex items-center gap-3 shrink-0 shadow-sm">
-          {/* Type selector */}
-          <div className="flex gap-1 flex-wrap">
-            {DOC_TYPES.map(item => {
-              const Icon = item.icon
-              return (
-                <button
-                  key={item.type}
-                  onClick={() => setPrintType(item.type)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition font-medium ${printType === item.type ? 'bg-blue-600 text-white shadow-sm' : 'hover:bg-slate-100 text-slate-600'}`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {item.label}
-                </button>
-              )
-            })}
-          </div>
-          <div className="flex items-center gap-2 ml-auto">
+      {/* ── Toolbar (hidden when printing) ── */}
+      <div id="crm-print-toolbar" style={{
+        background: '#ffffff',
+        borderBottom: '1px solid #e5e7eb',
+        padding: '8px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        flexShrink: 0,
+        flexWrap: 'wrap',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+      }}>
+        {/* Doc type tabs */}
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
+          {DOC_TYPES.map(({ type, label, icon: Icon }) => (
             <button
-              onClick={() => window.print()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition font-medium"
+              key={type}
+              onClick={() => setPrintType(type)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', fontSize: 12, borderRadius: 8,
+                border: 'none', cursor: 'pointer', fontWeight: 500,
+                background: printType === type ? '#2563eb' : '#f1f5f9',
+                color: printType === type ? '#fff' : '#475569',
+                transition: 'all 0.15s',
+              }}
             >
-              <Printer className="w-4 h-4" /> Печать
+              <Icon style={{ width: 14, height: 14 }} />
+              {label}
             </button>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition text-slate-500"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
+          ))}
         </div>
 
-        {/* Document preview */}
-        <div id="print-modal-document" className="flex-1 overflow-y-auto bg-slate-100">
-          <div ref={docRef} className="min-h-full">
-            {!isReady ? (
-              <div className="flex items-center justify-center h-64 text-slate-400">Загрузка...</div>
-            ) : (
-              <DocumentContent
-                order={order}
-                company={companyData}
-                labelSettings={labelSettings ?? {}}
-                docTemplates={docTemplates ?? {}}
-                printType={printType}
-                qrDataUrl={qrDataUrl}
-                trackUrl={trackUrl}
-              />
-            )}
-          </div>
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <button
+            onClick={() => window.print()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 16px', background: '#2563eb', color: '#fff',
+              border: 'none', borderRadius: 8, fontSize: 14,
+              cursor: 'pointer', fontWeight: 600,
+            }}
+          >
+            <Printer style={{ width: 16, height: 16 }} /> Печать
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              width: 34, height: 34,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer',
+            }}
+            title="Закрыть"
+          >
+            <X style={{ width: 16, height: 16, color: '#64748b' }} />
+          </button>
         </div>
       </div>
-    </>
+
+      {/* ── Document preview area ── */}
+      <div
+        id="crm-print-scroll"
+        style={{ flex: 1, overflowY: 'auto', background: '#e2e8f0', padding: '32px 16px' }}
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+      >
+        <div id="crm-print-sheet" style={{
+          maxWidth: printType === 'label' ? 360 : 800,
+          margin: '0 auto',
+          background: '#fff',
+          borderRadius: 4,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          overflow: 'hidden',
+          minHeight: 400,
+        }}>
+          {!isReady ? (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 300, color: '#94a3b8', fontSize: 14 }}>
+              Загрузка...
+            </div>
+          ) : (
+            <DocumentContent
+              order={order}
+              company={companyData}
+              labelSettings={labelSettings ?? {}}
+              docTemplates={docTemplates ?? {}}
+              printType={printType}
+              qrDataUrl={qrDataUrl}
+              trackUrl={trackUrl}
+            />
+          )}
+        </div>
+        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 12 }}>
+          Нажмите «Печать» или Ctrl+P · Esc — закрыть · Кликните за пределами листа — закрыть
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
