@@ -1001,14 +1001,21 @@ export default function OrderDetailPage() {
 
                 {/* Current approval status */}
                 {order.approvalStatus && (
-                  <div className={`mb-4 px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2
-                    ${order.approvalStatus === 'approved' ? 'bg-green-50 text-green-700 border border-green-200' :
-                      order.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
-                      order.approvalStatus === 'thinking' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
-                      'bg-slate-50 text-slate-600 border'}`}>
-                    {order.approvalStatus === 'approved' ? '✓ Согласовано' :
-                     order.approvalStatus === 'rejected' ? '✗ Отказался' :
-                     order.approvalStatus === 'thinking' ? '⏳ Клиент ещё думает' : '⏳ Ожидает ответа'}
+                  <div className="mb-4 space-y-1">
+                    <div className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2
+                      ${order.approvalStatus === 'approved' ? 'bg-green-50 text-green-700 border border-green-200' :
+                        order.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
+                        order.approvalStatus === 'thinking' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
+                        'bg-slate-50 text-slate-600 border'}`}>
+                      {order.approvalStatus === 'approved' ? '✓ Клиент согласовал' :
+                       order.approvalStatus === 'rejected' ? '✗ Клиент отказался' :
+                       order.approvalStatus === 'thinking' ? '⏳ Клиент ещё думает' : '⏳ Ожидает ответа'}
+                    </div>
+                    {order.clientApprovalComment && (
+                      <div className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2 border">
+                        <span className="font-medium">Комментарий клиента:</span> {order.clientApprovalComment}
+                      </div>
+                    )}
                   </div>
                 )}
 

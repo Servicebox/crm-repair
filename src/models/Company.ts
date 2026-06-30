@@ -69,6 +69,7 @@ export interface ICompany extends Document {
   telegramBotToken?: string
   vkGroupId?: string
   vkAccessToken?: string
+  reviewUrl?: string
   receptionSettings?: unknown
   labelSettings?: unknown
   fiscalSettings?: unknown
@@ -179,6 +180,7 @@ const CompanySchema = new Schema<ICompany>(
     telegramBotToken: String,
     vkGroupId: String,
     vkAccessToken: String,
+    reviewUrl: String,
     receptionSettings: { type: Schema.Types.Mixed, default: null },
     labelSettings: { type: Schema.Types.Mixed, default: null },
     fiscalSettings: { type: Schema.Types.Mixed, default: null },

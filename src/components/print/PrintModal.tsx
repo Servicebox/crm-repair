@@ -78,10 +78,10 @@ interface PrintModalProps {
 // ---------- document templates ----------
 
 function DocumentContent({
-  order, company, labelSettings, docTemplates, printType, qrDataUrl, trackUrl,
+  order, company, labelSettings, docTemplates, printType, qrDataUrl, reviewQrDataUrl, trackUrl,
 }: {
   order: Order; company: Order; labelSettings: Order; docTemplates: Order
-  printType: string; qrDataUrl: string; trackUrl: string
+  printType: string; qrDataUrl: string; reviewQrDataUrl: string; trackUrl: string
 }) {
   const totalPaid = ((order.payments as { amount: number }[]) ?? []).reduce((s, p) => s + p.amount, 0)
   const remaining = Math.max(0, ((order.finalCost as number) ?? 0) - totalPaid)
@@ -363,6 +363,13 @@ function DocumentContent({
               </div>
             </div>
           )}
+          {reviewQrDataUrl && (
+            <div style={{ marginTop: 14, borderTop: '1px dashed #ccc', paddingTop: 12, textAlign: 'center' }}>
+              <div style={{ fontSize: 11, fontWeight: 'bold', color: '#333', marginBottom: 4 }}>Понравился сервис? Оставьте отзыв!</div>
+              <img src={reviewQrDataUrl} style={{ width: 90, height: 90 }} alt="QR отзыв" />
+              <div style={{ fontSize: 9, color: '#888', marginTop: 3 }}>Отсканируйте QR-код</div>
+            </div>
+          )}
           {wtpl.footerText && <div style={{ textAlign: 'center', fontSize: 10, color: '#444', marginTop: 8 }}>{wtpl.footerText as string}</div>}
           {wtpl.legalText && <div style={{ fontSize: 9, color: '#666', marginTop: 6 }}>{wtpl.legalText as string}</div>}
         </div>
@@ -487,6 +494,7 @@ function DocumentContent({
 export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, initialType = 'receipt' }: PrintModalProps) {
   const [printType, setPrintType] = useState(initialType)
   const [qrDataUrl, setQrDataUrl] = useState('')
+  const [reviewQrDataUrl, setReviewQrDataUrl] = useState('')
   const [mounted, setMounted] = useState(false)
 
   // Hydration guard — portal requires browser DOM
@@ -519,13 +527,6 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
     return () => window.removeEventListener('keydown', handler)
   }, [isOpen, onClose])
 
-  // QR code
-  useEffect(() => {
-    if (!order?.number) return
-    const url = `${window.location.origin}/track/${order.number as string}`
-    QRCode.toDataURL(url, { width: 120, margin: 0 }).then(setQrDataUrl)
-  }, [order?.number])
-
   const { data: companyData } = useQuery({
     queryKey: ['settings'],
     queryFn: async () => { const r = await fetch('/api/settings'); return (await r.json()).data },
@@ -541,6 +542,20 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
     queryFn: async () => { const r = await fetch('/api/settings/documents'); return (await r.json()).data ?? {} },
     enabled: isOpen,
   })
+
+  // QR code — order tracking
+  useEffect(() => {
+    if (!order?.number) return
+    const url = `${window.location.origin}/track/${order.number as string}`
+    QRCode.toDataURL(url, { width: 120, margin: 0 }).then(setQrDataUrl)
+  }, [order?.number])
+
+  // QR code — review link (generated when companyData arrives)
+  const reviewUrl = (companyData as Record<string, unknown> | undefined)?.reviewUrl as string | undefined
+  useEffect(() => {
+    if (!reviewUrl) return
+    QRCode.toDataURL(reviewUrl, { width: 160, margin: 1 }).then(setReviewQrDataUrl)
+  }, [reviewUrl])
 
   if (!isOpen || !mounted) return null
 
@@ -637,6 +652,7 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
               docTemplates={docTemplates ?? {}}
               printType={printType}
               qrDataUrl={qrDataUrl}
+              reviewQrDataUrl={reviewQrDataUrl}
               trackUrl={trackUrl}
             />
           )}

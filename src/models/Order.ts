@@ -109,6 +109,7 @@ export interface IOrder extends Document {
   deviceAtClient?: boolean
   approvalMessage?: string
   approvalStatus?: string
+  clientApprovalComment?: string
 
   notificationSent: boolean
   createdBy: mongoose.Types.ObjectId
@@ -240,6 +241,7 @@ const OrderSchema = new Schema<IOrder>(
     deviceAtClient: { type: Boolean, default: false },
     approvalMessage: String,
     approvalStatus: String,
+    clientApprovalComment: String,
 
     notificationSent: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },

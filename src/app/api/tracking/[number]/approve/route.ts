@@ -7,7 +7,7 @@ export async function POST(
   { params }: { params: { number: string } }
 ) {
   try {
-    const { action } = await req.json() as { action?: string }
+    const { action, comment } = await req.json() as { action?: string; comment?: string }
     if (action !== 'approve' && action !== 'decline') {
       return NextResponse.json({ error: 'Неверное действие' }, { status: 400 })
     }
@@ -24,15 +24,17 @@ export async function POST(
     }
 
     const newStatus = action === 'approve' ? 'in_repair' : 'cancelled'
-    const comment =
-      action === 'approve'
-        ? 'Клиент согласовал ремонт через форму отслеживания'
-        : 'Клиент отказался от ремонта через форму отслеживания'
+    const approvalStatus = action === 'approve' ? 'approved' : 'rejected'
+    const historyComment = action === 'approve'
+      ? `Клиент согласовал ремонт${comment ? `: «${comment}»` : ''}`
+      : `Клиент отказался от ремонта${comment ? `: «${comment}»` : ''}`
 
     order.status = newStatus
+    order.approvalStatus = approvalStatus
+    if (comment) order.clientApprovalComment = comment
     order.statusHistory.push({
       status: newStatus,
-      comment,
+      comment: historyComment,
       userId: order.createdBy,
       userName: 'Клиент',
       createdAt: new Date(),

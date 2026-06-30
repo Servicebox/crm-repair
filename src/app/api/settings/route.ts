@@ -47,6 +47,7 @@ const SettingsUpdateSchema = z.object({
   telegramBotToken: z.string().optional(),
   vkGroupId: z.string().optional(),
   vkAccessToken: z.string().optional(),
+  reviewUrl: z.string().optional(),
 })
 
 export async function GET() {
