@@ -170,7 +170,7 @@ export default function WarehousePage() {
   return (
     <div className="flex h-full">
       {/* Left sidebar */}
-      <aside className="w-52 shrink-0 border-r bg-card hidden lg:flex flex-col p-3 gap-1">
+      <aside className="w-52 shrink-0 border-r bg-card hidden lg:flex flex-col p-3 gap-1 overflow-y-auto">
         <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-2">Фильтр</div>
         {([['all', 'Все'], ['low', 'Мало'], ['out', 'Нет']] as const).map(([val, label]) => (
           <button
@@ -256,19 +256,34 @@ export default function WarehousePage() {
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="flex border-b mb-5">
-            {([['part', 'Запчасти'], ['product', 'Товары']] as const).map(([val, label]) => (
-              <button
-                key={val}
-                type="button"
-                onClick={() => { setTab(val); setCategory('') }}
-                className={cn('py-2.5 px-4 text-sm font-medium border-b-2 transition-colors -mb-px',
-                  tab === val ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground')}
+          {/* Tabs + mobile category selector */}
+          <div className="flex items-center gap-3 border-b mb-5 flex-wrap">
+            <div className="flex">
+              {([['part', 'Запчасти'], ['product', 'Товары']] as const).map(([val, label]) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => { setTab(val); setCategory('') }}
+                  className={cn('py-2.5 px-4 text-sm font-medium border-b-2 transition-colors -mb-px',
+                    tab === val ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {/* Category dropdown for small/medium screens (sidebar is hidden on <lg) */}
+            {categories.length > 0 && (
+              <select
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                className="lg:hidden ml-auto text-xs border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
               >
-                {label}
-              </button>
-            ))}
+                <option value="">Все категории</option>
+                {categories.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Stats */}
@@ -318,8 +333,8 @@ export default function WarehousePage() {
           {isLoading ? (
             <div className="flex justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-blue-600" /></div>
           ) : (
-            <div className="bg-card border rounded-xl overflow-hidden">
-              <table className="w-full text-sm">
+            <div className="bg-card border rounded-xl overflow-hidden overflow-x-auto">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead className="bg-muted/50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Наименование</th>

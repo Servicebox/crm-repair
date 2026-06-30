@@ -12,6 +12,11 @@ export const metadata: Metadata = {
   title: 'ServiceBox CRM — управление сервисным центром',
   description: 'Профессиональная CRM система для сервисных центров по ремонту техники',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/favicon.webp',
+    shortcut: '/favicon.webp',
+    apple: '/favicon.webp',
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -517,15 +517,16 @@ export default function EmployeesPage() {
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2 text-xs">
+                  {/* Email status row */}
+                  <div className="text-xs mb-2">
                     {emp.isEmailVerified ? (
                       <span className="text-green-600 flex items-center gap-1"><Shield className="w-3 h-3" />Email подтверждён</span>
                     ) : (
-                      <span className="text-orange-600 flex items-center gap-1.5">
-                        Email не подтверждён
+                      <div className="flex flex-wrap items-center gap-1.5 text-orange-600">
+                        <span>Email не подтверждён</span>
                         <button
                           title="Отправить приглашение повторно"
-                          className="text-blue-600 hover:text-blue-800 underline text-xs ml-0.5"
+                          className="text-blue-600 hover:text-blue-800 underline text-xs"
                           onClick={async (e) => {
                             e.stopPropagation()
                             try {
@@ -537,10 +538,12 @@ export default function EmployeesPage() {
                         >
                           Отправить повторно
                         </button>
-                      </span>
+                      </div>
                     )}
-                    <div className="flex-1" />
-                    <button onClick={() => openEdit(emp)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition"><Edit2 className="w-3.5 h-3.5" /></button>
+                  </div>
+                  {/* Action buttons row */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <button onClick={() => openEdit(emp)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition" title="Редактировать"><Edit2 className="w-3.5 h-3.5" /></button>
                     {isPrivileged && (
                       <button
                         onClick={async () => {
@@ -563,8 +566,9 @@ export default function EmployeesPage() {
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     )}
-                    <button onClick={() => handleToggleActive(emp)} className={cn('px-2 py-1 rounded-lg text-xs font-medium transition', emp.isActive ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200')}>
-                      {emp.isActive ? 'Деактивировать' : 'Активировать'}
+                    <div className="flex-1" />
+                    <button onClick={() => handleToggleActive(emp)} className={cn('px-2 py-1 rounded-lg text-xs font-medium transition shrink-0', emp.isActive ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200')}>
+                      {emp.isActive ? 'Деактив.' : 'Активир.'}
                     </button>
                   </div>
                 </div>

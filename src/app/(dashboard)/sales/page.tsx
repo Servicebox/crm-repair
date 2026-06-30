@@ -738,7 +738,7 @@ ${vatLines}
             </div>
 
             {/* Payment methods */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1.5">
               {PAYMENT_METHODS.map(m => (
                 <button
                   key={m.key}
