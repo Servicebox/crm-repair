@@ -111,6 +111,7 @@ export interface IOrder extends Document {
   approvalStatus?: string
   clientApprovalComment?: string
 
+  companyId?: mongoose.Types.ObjectId | string
   notificationSent: boolean
   createdBy: mongoose.Types.ObjectId
   createdAt: Date
@@ -243,6 +244,7 @@ const OrderSchema = new Schema<IOrder>(
     approvalStatus: String,
     clientApprovalComment: String,
 
+    companyId: { type: Schema.Types.Mixed },
     notificationSent: { type: Boolean, default: false },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
