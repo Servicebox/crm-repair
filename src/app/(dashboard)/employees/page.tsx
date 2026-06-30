@@ -521,7 +521,23 @@ export default function EmployeesPage() {
                     {emp.isEmailVerified ? (
                       <span className="text-green-600 flex items-center gap-1"><Shield className="w-3 h-3" />Email подтверждён</span>
                     ) : (
-                      <span className="text-orange-600">Email не подтверждён</span>
+                      <span className="text-orange-600 flex items-center gap-1.5">
+                        Email не подтверждён
+                        <button
+                          title="Отправить приглашение повторно"
+                          className="text-blue-600 hover:text-blue-800 underline text-xs ml-0.5"
+                          onClick={async (e) => {
+                            e.stopPropagation()
+                            try {
+                              const res = await fetch(`/api/employees/${emp._id}/resend-invite`, { method: 'POST' })
+                              if (res.ok) alert(`Приглашение повторно отправлено на ${emp.email}`)
+                              else { const j = await res.json(); alert(j.error ?? 'Ошибка') }
+                            } catch { alert('Ошибка сети') }
+                          }}
+                        >
+                          Отправить повторно
+                        </button>
+                      </span>
                     )}
                     <div className="flex-1" />
                     <button onClick={() => openEdit(emp)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition"><Edit2 className="w-3.5 h-3.5" /></button>

@@ -61,6 +61,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireTenantRole(['owner', 'admin'])
   if (auth.error) return auth.error
   const { models: { User } } = auth
+  const tenantDbName = auth.session!.user.dbName
 
   try {
     const body = await req.json()
@@ -98,7 +99,7 @@ export async function POST(req: NextRequest) {
     let emailSent = false
     if (!manualPassword && token) {
       try {
-        await sendVerificationEmail(data.email, token, data.name)
+        await sendVerificationEmail(data.email, token, data.name, tenantDbName)
         emailSent = true
       } catch (emailError) {
         console.error('[employees] Failed to send invite email to', data.email, ':', emailError)

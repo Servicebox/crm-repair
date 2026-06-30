@@ -37,9 +37,9 @@ function createTransporter() {
   })
 }
 
-export async function sendVerificationEmail(email: string, token: string, name: string) {
+export async function sendVerificationEmail(email: string, token: string, name: string, dbName?: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.AUTH_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'
-  const url = `${baseUrl}/verify-email?token=${token}`
+  const url = `${baseUrl}/verify-email?token=${token}${dbName ? `&db=${encodeURIComponent(dbName)}` : ''}`
   const transporter = createTransporter()
   await transporter.sendMail({
     from: process.env.SMTP_FROM || process.env.SMTP_USER,

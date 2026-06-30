@@ -17,7 +17,7 @@ function passwordStrength(pw: string): { score: number; label: string; color: st
   return { score, label: 'Надёжный', color: 'bg-green-500' }
 }
 
-function SetPasswordForm({ token }: { token: string }) {
+function SetPasswordForm({ token, dbName }: { token: string; dbName: string | null }) {
   const router = useRouter()
   const [userName, setUserName] = useState('')
   const [status, setStatus] = useState<'checking' | 'form' | 'done' | 'error'>('checking')
@@ -30,7 +30,7 @@ function SetPasswordForm({ token }: { token: string }) {
 
   useEffect(() => {
     const controller = new AbortController()
-    fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}`, { signal: controller.signal })
+    fetch(`/api/auth/verify-email?token=${encodeURIComponent(token)}${dbName ? `&db=${encodeURIComponent(dbName)}` : ''}`, { signal: controller.signal })
       .then(r => r.json())
       .then(data => {
         if (data.success) {
@@ -69,7 +69,7 @@ function SetPasswordForm({ token }: { token: string }) {
       const res = await fetch('/api/auth/verify-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token, password, ...(dbName ? { db: dbName } : {}) }),
       })
       const data = await res.json()
       if (data.success) {
@@ -219,6 +219,7 @@ function SetPasswordForm({ token }: { token: string }) {
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
+  const dbName = searchParams.get('db')
 
   if (!token) {
     return (
@@ -230,7 +231,7 @@ function VerifyEmailContent() {
     )
   }
 
-  return <SetPasswordForm token={token} />
+  return <SetPasswordForm token={token} dbName={dbName} />
 }
 
 export default function VerifyEmailPage() {
