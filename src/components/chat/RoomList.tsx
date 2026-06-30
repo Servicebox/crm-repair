@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Globe, Lock, Plus, Loader2, X, MessageCircle } from 'lucide-react'
+import { Globe, Lock, Plus, Loader2, X, MessageCircle, Wrench } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ChatRoom {
@@ -9,6 +9,7 @@ interface ChatRoom {
   slug: string
   name: string
   scope: 'global' | 'internal'
+  orderNumber?: string
   lastMessage?: { text: string; userName: string; createdAt: string } | null
 }
 
@@ -31,9 +32,11 @@ function RoomItem({ room, isActive, onSelect }: RoomItemProps) {
       )}
     >
       <div className="flex items-center gap-2">
-        {room.scope === 'global'
-          ? <Globe className="w-3.5 h-3.5 shrink-0 text-blue-500" />
-          : <Lock className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+        {room.orderNumber
+          ? <Wrench className="w-3.5 h-3.5 shrink-0 text-orange-500" />
+          : room.scope === 'global'
+            ? <Globe className="w-3.5 h-3.5 shrink-0 text-blue-500" />
+            : <Lock className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
         }
         <span className="text-sm font-medium truncate">{room.name}</span>
       </div>
@@ -87,8 +90,9 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
     },
   })
 
-  const globalRooms = (rooms ?? []).filter(r => r.scope === 'global')
-  const internalRooms = (rooms ?? []).filter(r => r.scope === 'internal')
+  const globalRooms = (rooms ?? []).filter(r => r.scope === 'global' && !r.orderNumber)
+  const internalRooms = (rooms ?? []).filter(r => r.scope === 'internal' && !r.orderNumber)
+  const orderRooms = (rooms ?? []).filter(r => !!r.orderNumber)
 
   if (isLoading) {
     return (
@@ -127,6 +131,18 @@ export default function RoomList({ activeRoom, onSelect, canCreate }: Props) {
         <div className="px-3 py-2 text-xs text-muted-foreground">
           Нет внутренних каналов
         </div>
+      )}
+
+      {orderRooms.length > 0 && (
+        <>
+          <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-2 flex items-center gap-1">
+            <Wrench className="w-2.5 h-2.5" />
+            <span>Заказы</span>
+          </div>
+          {orderRooms.map(r => (
+            <RoomItem key={r._id} room={r} isActive={r.slug === activeRoom} onSelect={onSelect} />
+          ))}
+        </>
       )}
 
       {showCreate && (

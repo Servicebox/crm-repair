@@ -12,6 +12,9 @@ export interface IChatRoom extends Document {
   // Empty for global/internal rooms (access controlled by session scope).
   participants: mongoose.Types.ObjectId[]
   createdBy?: mongoose.Types.ObjectId
+  // Order-linked rooms
+  orderId?: mongoose.Types.ObjectId
+  orderNumber?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -24,6 +27,8 @@ const ChatRoomSchema = new Schema<IChatRoom>(
     description: { type: String },
     participants: [{ type: Schema.Types.ObjectId, ref: 'Company' }],
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    orderId: { type: Schema.Types.ObjectId, ref: 'Order' },
+    orderNumber: { type: String },
   },
   { timestamps: true }
 )

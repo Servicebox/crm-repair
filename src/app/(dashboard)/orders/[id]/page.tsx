@@ -139,6 +139,7 @@ export default function OrderDetailPage() {
   const [showPrintMenu, setShowPrintMenu] = useState(false)
   const [showPrintModal, setShowPrintModal] = useState(false)
   const [printModalType, setPrintModalType] = useState('receipt')
+  const [discussing, setDiscussing] = useState(false)
   const [approvalDraft, setApprovalDraft] = useState('')
   const [photoUploading, setPhotoUploading] = useState(false)
   const [trackUrl, setTrackUrl] = useState('')
@@ -220,6 +221,22 @@ export default function OrderDetailPage() {
   function openPrint(type: string) {
     setPrintModalType(type)
     setShowPrintModal(true)
+  }
+
+  async function handleDiscuss() {
+    if (!order || discussing) return
+    setDiscussing(true)
+    try {
+      const res = await fetch('/api/chat/rooms/order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId: id, orderNumber: order.number }),
+      })
+      const json = await res.json()
+      if (json.success) router.push(`/chat?room=${json.data.slug}`)
+    } finally {
+      setDiscussing(false)
+    }
   }
 
   function handleStatusChange() {
@@ -357,6 +374,19 @@ export default function OrderDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {/* Discuss in internal chat */}
+          <button
+            onClick={handleDiscuss}
+            disabled={discussing}
+            className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-sm hover:bg-accent transition disabled:opacity-60"
+            title="Обсудить заказ во внутреннем чате"
+          >
+            {discussing
+              ? <Loader2 className="w-4 h-4 animate-spin" />
+              : <MessageSquare className="w-4 h-4" />
+            }
+            <span className="hidden sm:inline">Обсудить</span>
+          </button>
           {/* Print menu */}
           <div className="relative">
             <button

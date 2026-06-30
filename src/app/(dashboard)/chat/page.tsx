@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { Send, Loader2, Globe, Lock, MessageCircle, AlertCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MessageBubble, { type Message } from '@/components/chat/MessageBubble'
@@ -17,7 +18,8 @@ interface ChatRoom {
 export default function ChatPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
-  const [activeRoom, setActiveRoom] = useState('general')
+  const searchParams = useSearchParams()
+  const [activeRoom, setActiveRoom] = useState(() => searchParams.get('room') ?? 'general')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
