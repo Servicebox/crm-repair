@@ -2,8 +2,8 @@ import NextAuth, { CredentialsSignin } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from '@/auth.config'
 import { connectToDatabase } from '@/lib/mongodb'
-import { getDefaultDbName } from '@/lib/tenantDb'
-import User from '@/models/User'
+import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
+import User, { getUserModel } from '@/models/User'
 import Company from '@/models/Company'
 
 class EmailNotVerifiedError extends CredentialsSignin {
@@ -20,8 +20,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.id as string
 
       // Apply JWT-cached values immediately as fallback.
-      // If the DB lookup below succeeds, these will be overwritten with fresh data.
-      // If it fails, the user still gets a working session from their last login.
       if (token.companyId !== undefined) session.user.companyId = token.companyId as string
       if (token.dbName) session.user.dbName = token.dbName as string
       if (token.subscriptionStatus) session.user.subscriptionStatus = token.subscriptionStatus as string
@@ -29,12 +27,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       try {
         await connectToDatabase()
 
-        const dbUser = await User.findById(token.id)
+        // Use cached dbName to find user in the correct tenant DB.
+        const cachedDbName = (token.dbName as string) || getDefaultDbName()
+        let userModel = User
+        if (cachedDbName !== getDefaultDbName()) {
+          const tenantConn = await getTenantConnection(cachedDbName)
+          userModel = getUserModel(tenantConn)
+        }
+
+        const dbUser = await userModel.findById(token.id)
           .select('role companyId isActive')
           .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean } | null
 
-        // Deactivated user: return minimal session — role will be empty,
-        // requireTenantAuth() will return 401 on the next request.
         if (!dbUser?.isActive) return session
 
         session.user.role = dbUser.role ?? ''
@@ -53,14 +57,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           }
         } else {
           // Super-admin / platform owner — no company assignment.
-          // Use the main platform DB; do NOT pick a random tenant.
           session.user.companyId = ''
           session.user.dbName = getDefaultDbName()
         }
       } catch {
-        // Never let the session callback throw — Auth.js v5 wraps uncaught errors
-        // in callbacks as CredentialsSignin, which masks the real cause and blocks
-        // all auth() calls in Route Handlers. JWT-cached values remain active.
+        // Never let the session callback throw — JWT-cached values remain active.
       }
 
       return session
@@ -76,7 +77,33 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!credentials?.email || !credentials?.password) return null
         await connectToDatabase()
 
-        const user = await User.findOne({ email: credentials.email, isActive: true })
+        // Search in default DB first (covers owners and platform admins).
+        let user = await User.findOne({ email: credentials.email, isActive: true })
+        let userDbName = getDefaultDbName()
+
+        // If not found in default DB, search across all tenant databases.
+        if (!user) {
+          const companies = await Company.find(
+            { dbName: { $exists: true, $ne: getDefaultDbName() } },
+            { dbName: 1 }
+          ).lean() as { dbName?: string }[]
+
+          const distinctDbNames = [...new Set(
+            companies.map(c => c.dbName).filter((n): n is string => !!n)
+          )]
+
+          for (const dbName of distinctDbNames) {
+            const conn = await getTenantConnection(dbName)
+            const TenantUser = getUserModel(conn)
+            const found = await TenantUser.findOne({ email: credentials.email, isActive: true })
+            if (found) {
+              user = found
+              userDbName = dbName
+              break
+            }
+          }
+        }
+
         if (!user) return null
 
         const isValid = await user.comparePassword(credentials.password as string)
@@ -87,7 +114,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         let companyId = user.companyId?.toString() ?? ''
-        let dbName = getDefaultDbName()
+        let dbName = userDbName
 
         if (user.companyId) {
           const company = await Company.findById(user.companyId)
@@ -99,7 +126,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           if (!companyId) companyId = company._id.toString()
         }
         // Super-admin without companyId: companyId stays '', dbName stays default.
-        // No random Company.findOne() — that would bind them to a specific tenant.
 
         return {
           id: user._id.toString(),
