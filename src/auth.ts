@@ -23,7 +23,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // isPlatformOwner set here so it's available even if the DB lookup below fails.
       session.user.isPlatformOwner = !!process.env.PLATFORM_OWNER_EMAIL && token.email === process.env.PLATFORM_OWNER_EMAIL
 
-      // Apply JWT-cached values immediately as fallback.
+      // Apply JWT-cached values immediately as fallback (overwritten by fresh DB lookup below).
+      if (token.role) session.user.role = token.role as string
       if (token.companyId !== undefined) session.user.companyId = token.companyId as string
       if (token.dbName) session.user.dbName = token.dbName as string
       if (token.subscriptionStatus) session.user.subscriptionStatus = token.subscriptionStatus as string

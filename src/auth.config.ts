@@ -33,12 +33,11 @@ export const authConfig: NextAuthConfig = {
     jwt({ token, user }) {
       if (user) {
         token.id = user.id
-        // Cache companyId + dbName in the JWT so the session callback can fall back
-        // to these values if the DB lookup fails (cold start, connection busy).
-        // role is intentionally NOT cached — stale role is a privilege-escalation risk.
         token.companyId = user.companyId ?? ''
         token.dbName = user.dbName ?? ''
         token.subscriptionStatus = (user as { subscriptionStatus?: string }).subscriptionStatus ?? 'trial'
+        // Cache role as fallback for when DB lookup in session callback fails.
+        token.role = (user as { role?: string }).role ?? ''
       }
       return token
     },
