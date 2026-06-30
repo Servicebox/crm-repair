@@ -48,7 +48,9 @@ async function getOrder(number: string) {
     await connectToDatabase()
     const order = await Order.findOne({ number: decodeURIComponent(number) }).lean()
     if (!order) return null
-    const company = await Company.findOne().lean()
+    const company = order.companyId
+      ? await Company.findById(order.companyId).lean()
+      : await Company.findOne().lean()
     return {
       number: order.number,
       status: order.status as string,
