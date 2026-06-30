@@ -18,6 +18,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!token?.id || !session.user) return session
 
       session.user.id = token.id as string
+      // Email always comes from the JWT token (set by NextAuth from authorize's return value).
+      if (token.email) session.user.email = token.email as string
+      // isPlatformOwner set here so it's available even if the DB lookup below fails.
+      session.user.isPlatformOwner = !!process.env.PLATFORM_OWNER_EMAIL && token.email === process.env.PLATFORM_OWNER_EMAIL
 
       // Apply JWT-cached values immediately as fallback.
       if (token.companyId !== undefined) session.user.companyId = token.companyId as string
@@ -42,7 +46,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         if (!dbUser?.isActive) return session
 
         session.user.role = dbUser.role ?? ''
-        session.user.isPlatformOwner = (token.email as string | undefined) === process.env.PLATFORM_OWNER_EMAIL && !!process.env.PLATFORM_OWNER_EMAIL
 
         const rawCompanyId = dbUser.companyId?.toString() ?? ''
         if (rawCompanyId) {

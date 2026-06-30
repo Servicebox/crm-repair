@@ -103,7 +103,7 @@ function NavItemComponent({ item, depth = 0 }: { item: NavItem; depth?: number }
   })
 
   if (item.roles && !item.roles.includes(userRole ?? '')) return null
-  if (item.platformOnly && session?.user?.email !== process.env.NEXT_PUBLIC_PLATFORM_OWNER_EMAIL) return null
+  if (item.platformOnly && !session?.user?.isPlatformOwner) return null
 
   if (item.children) {
     return (
