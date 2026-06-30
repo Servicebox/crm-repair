@@ -25,7 +25,7 @@ export const TARGET_FIELDS: TargetField[] = [
     path: 'client.phone',
     label: 'Телефон',
     entity: 'clients',
-    synonyms: ['телефон', 'тел', 'phone', 'mobile', 'cell', 'contact_phone', 'телефон клиента', 'моб'],
+    synonyms: ['телефон', 'тел', 'phone', 'mobile', 'cell', 'contact_phone', 'телефон клиента', 'моб', 'контактный телефон', 'основной телефон', 'номер телефона', 'номер', 'контактный'],
   },
   {
     path: 'client.email',

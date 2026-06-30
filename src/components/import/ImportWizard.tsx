@@ -283,7 +283,7 @@ export function ImportWizard() {
 
             <div className="flex gap-3 pt-2">
               <button onClick={() => setStep('options')} className="btn-outline">← Назад</button>
-              <button onClick={handleMappingConfirm} disabled={loading || mapping.length === 0} className="btn-primary">
+              <button onClick={handleMappingConfirm} disabled={loading} className="btn-primary">
                 {loading ? 'Сохраняю…' : 'Подтвердить маппинг →'}
               </button>
             </div>

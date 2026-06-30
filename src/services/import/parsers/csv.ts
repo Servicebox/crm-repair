@@ -74,7 +74,12 @@ export async function analyseCsv(filePath: string): Promise<CsvAnalysis> {
 
   await new Promise<void>((resolve, reject) => {
     const stream = createCsvStream(filePath, encoding)
-    const parser = csvParser({ separator, strict: false })
+    const parser = csvParser({
+      separator,
+      strict: false,
+      mapHeaders: ({ header, index }: { header: string; index: number }) =>
+        index === 0 ? header.replace(/^﻿/, '') : header,
+    })
 
     stream.pipe(parser)
       .on('headers', (h: string[]) => { headers = h })
@@ -106,7 +111,12 @@ export async function streamCsv(
 
   await new Promise<void>((resolve, reject) => {
     const rawStream = createCsvStream(filePath, encoding)
-    const parser = csvParser({ separator, strict: false })
+    const parser = csvParser({
+      separator,
+      strict: false,
+      mapHeaders: ({ header, index }: { header: string; index: number }) =>
+        index === 0 ? header.replace(/^﻿/, '') : header,
+    })
 
     // We need a reference to pause/resume for backpressure
     const controlled = rawStream.pipe(parser)
