@@ -62,6 +62,16 @@ export async function DELETE(req: NextRequest) {
   const company = await Company.findById(id).lean() as ({ dbName?: string; _id: mongoose.Types.ObjectId } & Record<string, unknown>) | null
   if (!company) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Protect the platform owner's own company from deletion
+  const ownerEmail = process.env.PLATFORM_OWNER_EMAIL
+  if (ownerEmail) {
+    const DefaultUser = getUserModel(mongoose.connection)
+    const ownerUser = await DefaultUser.findOne({ email: ownerEmail }).lean() as { companyId?: { toString(): string } } | null
+    if (ownerUser?.companyId?.toString() === id) {
+      return NextResponse.json({ error: 'Нельзя удалить организацию платформенного владельца' }, { status: 403 })
+    }
+  }
+
   const defaultDb = getDefaultDbName()
   const tenantDb = company.dbName
 
