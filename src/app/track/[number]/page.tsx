@@ -45,14 +45,17 @@ const STATUS_COLORS: Record<string, string> = {
 // Defined order of statuses for the progress timeline
 const STATUS_FLOW = ['new', 'diagnostics', 'waiting_approval', 'in_repair', 'quality_check', 'ready', 'issued']
 
-async function findOrderAcrossDbs(number: string) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyDoc = Record<string, any>
+
+async function findOrderAcrossDbs(number: string): Promise<{ order: AnyDoc; company: AnyDoc | null } | null> {
   // 1. Try default DB first
   await connectToDatabase()
-  const defaultOrder = await Order.findOne({ number }).lean()
+  const defaultOrder = await Order.findOne({ number }).lean() as AnyDoc | null
   if (defaultOrder) {
     const company = defaultOrder.companyId
-      ? await Company.findById(defaultOrder.companyId).lean()
-      : await Company.findOne().lean()
+      ? await Company.findById(defaultOrder.companyId).lean() as AnyDoc | null
+      : await Company.findOne().lean() as AnyDoc | null
     return { order: defaultOrder, company }
   }
 
@@ -60,14 +63,14 @@ async function findOrderAcrossDbs(number: string) {
   const companies = await Company.find(
     { dbName: { $exists: true, $ne: getDefaultDbName() } },
     { dbName: 1, name: 1, phone: 1, address: 1, logo: 1, reviewUrl: 1 }
-  ).lean() as Array<{ _id: unknown; dbName?: string; name?: string; phone?: string; address?: string; logo?: string; reviewUrl?: string }>
+  ).lean() as AnyDoc[]
 
   for (const comp of companies) {
     if (!comp.dbName) continue
     try {
       const conn = await getTenantConnection(comp.dbName)
       const { Order: TenantOrder } = getModels(conn)
-      const found = await TenantOrder.findOne({ number }).lean()
+      const found = await TenantOrder.findOne({ number }).lean() as AnyDoc | null
       if (found) return { order: found, company: comp }
     } catch { continue }
   }
