@@ -1,5 +1,7 @@
 import { Wrench, CheckCircle, Clock, Package, AlertCircle, Star } from 'lucide-react'
 import { connectToDatabase } from '@/lib/mongodb'
+import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
+import { getModels } from '@/lib/models'
 import Order from '@/models/Order'
 import Company from '@/models/Company'
 import ApprovalButtons from '@/components/track/ApprovalButtons'
@@ -43,14 +45,40 @@ const STATUS_COLORS: Record<string, string> = {
 // Defined order of statuses for the progress timeline
 const STATUS_FLOW = ['new', 'diagnostics', 'waiting_approval', 'in_repair', 'quality_check', 'ready', 'issued']
 
+async function findOrderAcrossDbs(number: string) {
+  // 1. Try default DB first
+  await connectToDatabase()
+  const defaultOrder = await Order.findOne({ number }).lean()
+  if (defaultOrder) {
+    const company = defaultOrder.companyId
+      ? await Company.findById(defaultOrder.companyId).lean()
+      : await Company.findOne().lean()
+    return { order: defaultOrder, company }
+  }
+
+  // 2. Search all tenant DBs
+  const companies = await Company.find(
+    { dbName: { $exists: true, $ne: getDefaultDbName() } },
+    { dbName: 1, name: 1, phone: 1, address: 1, logo: 1, reviewUrl: 1 }
+  ).lean() as Array<{ _id: unknown; dbName?: string; name?: string; phone?: string; address?: string; logo?: string; reviewUrl?: string }>
+
+  for (const comp of companies) {
+    if (!comp.dbName) continue
+    try {
+      const conn = await getTenantConnection(comp.dbName)
+      const { Order: TenantOrder } = getModels(conn)
+      const found = await TenantOrder.findOne({ number }).lean()
+      if (found) return { order: found, company: comp }
+    } catch { continue }
+  }
+  return null
+}
+
 async function getOrder(number: string) {
   try {
-    await connectToDatabase()
-    const order = await Order.findOne({ number: decodeURIComponent(number) }).lean()
-    if (!order) return null
-    const company = order.companyId
-      ? await Company.findById(order.companyId).lean()
-      : await Company.findOne().lean()
+    const result = await findOrderAcrossDbs(decodeURIComponent(number))
+    if (!result) return null
+    const { order, company } = result
     return {
       number: order.number,
       status: order.status as string,
