@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import MessageBubble, { type Message } from '@/components/chat/MessageBubble'
 import RoomList from '@/components/chat/RoomList'
 import { useChatSounds } from '@/hooks/useChatSounds'
+import { useNotifications } from '@/hooks/useNotifications'
 
 interface ChatRoom {
   _id: string
@@ -32,6 +33,7 @@ export default function ChatPage() {
 
   const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
   const { isMuted, toggleMute, playSend, playReceived } = useChatSounds()
+  const { showNotification } = useNotifications()
 
   // Track seen message IDs to play sound only for genuinely new incoming messages
   const seenMsgIdsRef = useRef<Set<string>>(new Set())
@@ -104,7 +106,7 @@ export default function ChatPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Play received sound when new messages from others arrive
+  // Play sound + show OS notification when new messages from others arrive
   useEffect(() => {
     if (!messages || !session?.user?.id) return
     if (isInitialLoadRef.current) {
@@ -112,12 +114,22 @@ export default function ChatPage() {
       isInitialLoadRef.current = false
       return
     }
-    const hasNew = messages.some(
+    const newMsgs = messages.filter(
       m => !seenMsgIdsRef.current.has(m._id) && m.userId !== session.user!.id
     )
     messages.forEach(m => seenMsgIdsRef.current.add(m._id))
-    if (hasNew) playReceived()
-  }, [messages, session?.user?.id, playReceived])
+    if (newMsgs.length > 0) {
+      playReceived()
+      if (!isMuted) {
+        const last = newMsgs[newMsgs.length - 1]
+        showNotification(
+          `${last.userName} — ${currentRoom?.name ?? activeRoom}`,
+          last.text.slice(0, 120),
+          `chat-${activeRoom}`,
+        )
+      }
+    }
+  }, [messages, session?.user?.id, playReceived, isMuted, showNotification, currentRoom, activeRoom])
 
   const handleReply = useCallback((msg: Message) => {
     setReplyTo(msg)

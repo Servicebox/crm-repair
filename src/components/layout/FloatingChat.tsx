@@ -7,6 +7,7 @@ import { MessageCircle, X, Send, Loader2, ChevronDown, AlertCircle, Reply, Volum
 import { cn } from '@/lib/utils'
 import MessageBubble, { type Message } from '@/components/chat/MessageBubble'
 import { useChatSounds } from '@/hooks/useChatSounds'
+import { useNotifications } from '@/hooks/useNotifications'
 
 // FloatingChat uses the INTERNAL room — exclusive to org employees
 const ROOM = 'internal'
@@ -30,6 +31,7 @@ export default function FloatingChat() {
   const isInitialLoadRef = useRef(true)
 
   const { isMuted, toggleMute, playSend, playReceived } = useChatSounds()
+  const { showNotification } = useNotifications()
 
   // All hooks must be called before any conditional return
   const isOnChatPage = pathname === '/chat'
@@ -64,7 +66,7 @@ export default function FloatingChat() {
     return () => es.close()
   }, [isOnChatPage, queryClient])
 
-  // Play sound when new messages from others arrive (SSE or polling)
+  // Play sound + show OS notification when new messages from others arrive (SSE or polling)
   useEffect(() => {
     if (!messages || !session?.user?.id) return
     if (isInitialLoadRef.current) {
@@ -72,12 +74,22 @@ export default function FloatingChat() {
       isInitialLoadRef.current = false
       return
     }
-    const hasNew = messages.some(
+    const newMsgs = messages.filter(
       m => !seenMsgIdsRef.current.has(m._id) && m.userId !== session.user!.id
     )
     messages.forEach(m => seenMsgIdsRef.current.add(m._id))
-    if (hasNew) playReceived()
-  }, [messages, session?.user?.id, playReceived])
+    if (newMsgs.length > 0) {
+      playReceived()
+      if (!isMuted) {
+        const last = newMsgs[newMsgs.length - 1]
+        showNotification(
+          `${last.userName} — Внутренний чат`,
+          last.text.slice(0, 120),
+          'chat-internal',
+        )
+      }
+    }
+  }, [messages, session?.user?.id, playReceived, isMuted, showNotification])
 
   useEffect(() => {
     if (!messages) return
