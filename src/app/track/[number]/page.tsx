@@ -158,6 +158,12 @@ export default async function TrackPage({ params }: { params: { number: string }
   // Build timeline from statusHistory (unique statuses in flow order)
   const seenStatuses = new Set((order.history ?? []).map((h: { status: string }) => h.status))
   seenStatuses.add(order.status)
+  // If admin sent for approval, always highlight waiting_approval step in timeline
+  if (order.approvalStatus === 'pending' || order.approvalStatus === 'approved' || order.approvalStatus === 'rejected') {
+    seenStatuses.add('waiting_approval')
+  }
+  // Effective status for timeline highlight: treat pending-approval as waiting_approval
+  const timelineActiveStatus = order.approvalStatus === 'pending' ? 'waiting_approval' : order.status
 
   return (
     <div className="min-h-screen bg-slate-50 p-4">
@@ -181,8 +187,8 @@ export default async function TrackPage({ params }: { params: { number: string }
             <div className="text-xs font-medium text-slate-500 mb-3">Ход ремонта</div>
             <div className="flex items-center gap-0">
               {STATUS_FLOW.map((s, i) => {
-                const done = seenStatuses.has(s)
-                const active = order.status === s
+                const done = seenStatuses.has(s) && s !== timelineActiveStatus
+                const active = timelineActiveStatus === s
                 const Icon = STATUS_ICONS[s] ?? Clock
                 return (
                   <div key={s} className="flex items-center flex-1 min-w-0">
@@ -318,8 +324,9 @@ export default async function TrackPage({ params }: { params: { number: string }
           )}
         </div>
 
-        {/* Approval buttons — only when waiting for client decision and not yet decided */}
-        {order.status === 'waiting_approval' && !['approved', 'rejected'].includes(order.approvalStatus ?? '') && (
+        {/* Approval buttons — show when approvalStatus=pending (admin sent for approval),
+            regardless of which exact status the order is in */}
+        {order.approvalStatus === 'pending' && (
           <div className="mb-4">
             <ApprovalButtons
               orderNumber={order.number}
