@@ -25,7 +25,7 @@ export async function GET(
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne({ dbName: auth.session!.user.dbName })
+  const company = await Company.findById(auth.session!.user.companyId)
     .select('_id')
     .lean()
   if (!company) return err('Компания не найдена', 404)
@@ -47,7 +47,7 @@ export async function POST(
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne({ dbName: auth.session!.user.dbName })
+  const company = await Company.findById(auth.session!.user.companyId)
     .select('_id telegramBotToken')
     .lean()
   if (!company) return err('Компания не найдена', 404)
@@ -90,7 +90,7 @@ export async function DELETE(
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne({ dbName: auth.session!.user.dbName })
+  const company = await Company.findById(auth.session!.user.companyId)
     .select('_id')
     .lean()
   if (!company) return err('Компания не найдена', 404)
