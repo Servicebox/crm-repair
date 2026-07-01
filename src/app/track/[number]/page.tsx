@@ -142,7 +142,7 @@ export default async function TrackPage({ params }: { params: { number: string }
   const isIssued = order.status === 'issued'
 
   // Build timeline from statusHistory (unique statuses in flow order)
-  const seenStatuses = new Set((order.history ?? []).map(h => h.status))
+  const seenStatuses = new Set((order.history ?? []).map((h: { status: string }) => h.status))
   seenStatuses.add(order.status)
 
   return (
