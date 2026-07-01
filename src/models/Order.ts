@@ -247,7 +247,7 @@ const OrderSchema = new Schema<IOrder>(
 
     companyId: { type: Schema.Types.Mixed },
     notificationSent: { type: Boolean, default: false },
-    trackToken: { type: String, sparse: true },
+    trackToken: { type: String },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true }
