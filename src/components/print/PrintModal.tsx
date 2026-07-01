@@ -511,9 +511,10 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
   // QR code — order tracking
   useEffect(() => {
     if (!order?.number) return
-    const url = `${window.location.origin}/track/${order.number as string}`
+    const trackId = (order.trackToken as string | undefined) ?? (order.number as string)
+    const url = `${window.location.origin}/track/${trackId}`
     QRCode.toDataURL(url, { width: 120, margin: 0 }).then(setQrDataUrl)
-  }, [order?.number])
+  }, [order?.number, order?.trackToken])
 
   // QR code — review link (generated when companyData arrives)
   const reviewUrl = (companyData as Record<string, unknown> | undefined)?.reviewUrl as string | undefined
@@ -524,7 +525,8 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
 
   if (!isOpen || !mounted) return null
 
-  const trackUrl = `${window.location.origin}/track/${order?.number as string}`
+  const trackId = (order?.trackToken as string | undefined) ?? (order?.number as string)
+  const trackUrl = `${window.location.origin}/track/${trackId}`
   const isReady = !!(companyData && order)
 
   return createPortal(

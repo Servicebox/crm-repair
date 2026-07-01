@@ -66,9 +66,10 @@ function PrintContent() {
 
   useEffect(() => {
     if (!orderData?.number) return
-    const trackUrl = `${window.location.origin}/track/${orderData.number}`
+    const trackId = (orderData.trackToken as string | undefined) ?? orderData.number
+    const trackUrl = `${window.location.origin}/track/${trackId}`
     QRCode.toDataURL(trackUrl, { width: 100, margin: 0 }).then(setQrDataUrl)
-  }, [orderData?.number])
+  }, [orderData?.number, orderData?.trackToken])
 
   const isPreview = searchParams.get('preview') === '1'
 
@@ -86,7 +87,8 @@ function PrintContent() {
   const company = companyData
   const totalPaid = (order.payments ?? []).reduce((s: number, p: { amount: number }) => s + p.amount, 0)
   const remaining = Math.max(0, (order.finalCost ?? 0) - totalPaid)
-  const trackUrl = `${window.location.origin}/track/${order.number}`
+  const trackId = (order.trackToken as string | undefined) ?? order.number
+  const trackUrl = `${window.location.origin}/track/${trackId}`
 
   // ---------- LABEL 40×30 ----------
   if (printType === 'label') {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
+import { randomUUID } from 'crypto'
 import { connectToDatabase } from '@/lib/mongodb'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
@@ -131,6 +132,7 @@ export async function POST(req: NextRequest) {
 
     const order = await Order.create({
       number,
+      trackToken: randomUUID(),
       type: data.type,
       clientId,
       clientName: data.clientName,

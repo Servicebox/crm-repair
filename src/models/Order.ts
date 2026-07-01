@@ -113,6 +113,7 @@ export interface IOrder extends Document {
 
   companyId?: mongoose.Types.ObjectId | string
   notificationSent: boolean
+  trackToken?: string
   createdBy: mongoose.Types.ObjectId
   createdAt: Date
   updatedAt: Date
@@ -246,6 +247,7 @@ const OrderSchema = new Schema<IOrder>(
 
     companyId: { type: Schema.Types.Mixed },
     notificationSent: { type: Boolean, default: false },
+    trackToken: { type: String, sparse: true },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User', required: true },
   },
   { timestamps: true }
@@ -255,6 +257,7 @@ OrderSchema.index({ clientId: 1 })
 OrderSchema.index({ masterId: 1 })
 OrderSchema.index({ status: 1 })
 OrderSchema.index({ createdAt: -1 })
+OrderSchema.index({ trackToken: 1 }, { sparse: true })
 OrderSchema.index({
   number: 'text',
   clientName: 'text',

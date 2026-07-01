@@ -197,10 +197,11 @@ export default function OrderDetailPage() {
   // Generate QR code + set trackUrl (both need window.location, so do in useEffect)
   useEffect(() => {
     if (!data?.number) return
-    const url = `${window.location.origin}/track/${data.number}`
+    const trackId = (data.trackToken as string | undefined) ?? data.number
+    const url = `${window.location.origin}/track/${trackId}`
     setTrackUrl(url)
     QRCode.toDataURL(url, { width: 180, margin: 1 }).then(setQrDataUrl)
-  }, [data?.number])
+  }, [data?.number, data?.trackToken])
 
   if (isLoading) return (
     <div className="flex items-center justify-center h-64">

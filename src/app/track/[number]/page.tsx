@@ -48,10 +48,34 @@ const STATUS_FLOW = ['new', 'diagnostics', 'waiting_approval', 'in_repair', 'qua
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDoc = Record<string, any>
 
-async function findOrderAcrossDbs(number: string): Promise<{ order: AnyDoc; company: AnyDoc | null } | null> {
-  // 1. Try default DB first
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function findOrderAcrossDbs(param: string): Promise<{ order: AnyDoc; company: AnyDoc | null } | null> {
   await connectToDatabase()
-  const defaultOrder = await Order.findOne({ number }).lean() as AnyDoc | null
+
+  const isToken = UUID_RE.test(param)
+  const query = isToken ? { trackToken: param } : { number: param }
+
+  // Load all tenant companies (those with a dedicated DB)
+  const defaultDbName = getDefaultDbName()
+  const tenantCompanies = await Company.find(
+    { dbName: { $exists: true, $ne: defaultDbName } },
+    { dbName: 1, name: 1, phone: 1, address: 1, logo: 1, reviewUrl: 1 }
+  ).lean() as AnyDoc[]
+
+  // 1. Search tenant DBs first — prevents default-DB orders from shadowing tenant orders
+  for (const comp of tenantCompanies) {
+    if (!comp.dbName) continue
+    try {
+      const conn = await getTenantConnection(comp.dbName)
+      const { Order: TenantOrder } = getModels(conn)
+      const found = await TenantOrder.findOne(query).lean() as AnyDoc | null
+      if (found) return { order: found, company: comp }
+    } catch { continue }
+  }
+
+  // 2. Fall back to default DB (companies without a dedicated dbName)
+  const defaultOrder = await Order.findOne(query).lean() as AnyDoc | null
   if (defaultOrder) {
     const company = defaultOrder.companyId
       ? await Company.findById(defaultOrder.companyId).lean() as AnyDoc | null
@@ -59,21 +83,6 @@ async function findOrderAcrossDbs(number: string): Promise<{ order: AnyDoc; comp
     return { order: defaultOrder, company }
   }
 
-  // 2. Search all tenant DBs
-  const companies = await Company.find(
-    { dbName: { $exists: true, $ne: getDefaultDbName() } },
-    { dbName: 1, name: 1, phone: 1, address: 1, logo: 1, reviewUrl: 1 }
-  ).lean() as AnyDoc[]
-
-  for (const comp of companies) {
-    if (!comp.dbName) continue
-    try {
-      const conn = await getTenantConnection(comp.dbName)
-      const { Order: TenantOrder } = getModels(conn)
-      const found = await TenantOrder.findOne({ number }).lean() as AnyDoc | null
-      if (found) return { order: found, company: comp }
-    } catch { continue }
-  }
   return null
 }
 
