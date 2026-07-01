@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { connectToDatabase } from '@/lib/mongodb'
+import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
+import { getModels } from '@/lib/models'
 import Order from '@/models/Order'
+import Company from '@/models/Company'
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function findOrderForUpdate(param: string) {
+  await connectToDatabase()
+
+  const isToken = UUID_RE.test(param)
+  const query = isToken ? { trackToken: param } : { number: param }
+
+  const tenantCompanies = await Company.find(
+    { dbName: { $exists: true, $ne: getDefaultDbName() } },
+    { dbName: 1 }
+  ).lean() as { dbName?: string }[]
+
+  // Search tenant DBs first — prevents number collisions with default DB
+  for (const comp of tenantCompanies) {
+    if (!comp.dbName) continue
+    try {
+      const conn = await getTenantConnection(comp.dbName)
+      const { Order: TenantOrder } = getModels(conn)
+      const order = await TenantOrder.findOne(query)
+      if (order) return order
+    } catch { continue }
+  }
+
+  return Order.findOne(query)
+}
 
 export async function POST(
   req: NextRequest,
@@ -12,8 +42,7 @@ export async function POST(
       return NextResponse.json({ error: 'Неверное действие' }, { status: 400 })
     }
 
-    await connectToDatabase()
-    const order = await Order.findOne({ number: params.number })
+    const order = await findOrderForUpdate(params.number)
 
     if (!order) {
       return NextResponse.json({ error: 'Заказ не найден' }, { status: 404 })

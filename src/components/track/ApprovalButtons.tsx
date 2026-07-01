@@ -4,11 +4,12 @@ import { CheckCircle, XCircle, Loader2 } from 'lucide-react'
 
 interface Props {
   orderNumber: string
+  trackToken?: string
   estimatedCost?: number
   approvalMessage?: string
 }
 
-export default function ApprovalButtons({ orderNumber, estimatedCost, approvalMessage }: Props) {
+export default function ApprovalButtons({ orderNumber, trackToken, estimatedCost, approvalMessage }: Props) {
   const [loading, setLoading] = useState<'approve' | 'decline' | null>(null)
   const [done, setDone] = useState<'approve' | 'decline' | null>(null)
   const [comment, setComment] = useState('')
@@ -16,8 +17,9 @@ export default function ApprovalButtons({ orderNumber, estimatedCost, approvalMe
 
   async function handleAction(action: 'approve' | 'decline') {
     setLoading(action)
+    const trackId = trackToken ?? orderNumber
     try {
-      const res = await fetch(`/api/tracking/${orderNumber}/approve`, {
+      const res = await fetch(`/api/tracking/${trackId}/approve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, comment: comment.trim() || undefined }),

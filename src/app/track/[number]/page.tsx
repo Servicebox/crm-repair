@@ -93,6 +93,7 @@ async function getOrder(number: string) {
     const { order, company } = result
     return {
       number: order.number,
+      trackToken: order.trackToken as string | undefined,
       status: order.status as string,
       statusLabel: STATUS_LABELS[order.status] ?? order.status,
       deviceType: order.deviceType,
@@ -306,6 +307,7 @@ export default async function TrackPage({ params }: { params: { number: string }
           <div className="mb-4">
             <ApprovalButtons
               orderNumber={order.number}
+              trackToken={order.trackToken}
               estimatedCost={order.estimatedCost}
               approvalMessage={order.approvalMessage}
             />

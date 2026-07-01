@@ -55,7 +55,12 @@ export async function GET() {
   if (auth.error) return auth.error
 
   await connectToDatabase()
-  const company = await Company.findOne({ dbName: auth.session!.user.dbName }).lean()
+  // Try by dbName first; companies without a dedicated DB have no dbName field,
+  // so fall back to companyId lookup for the main-account case.
+  let company = await Company.findOne({ dbName: auth.session!.user.dbName }).lean()
+  if (!company && auth.session!.user.companyId) {
+    company = await Company.findById(auth.session!.user.companyId).lean()
+  }
   if (!company) return err('Компания не найдена', 404)
   return ok(company)
 }
