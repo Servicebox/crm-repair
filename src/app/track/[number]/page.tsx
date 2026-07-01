@@ -100,7 +100,7 @@ async function getOrder(number: string) {
       dueDate: order.dueDate ? order.dueDate.toISOString() : null,
       issuedAt: order.issuedAt ? order.issuedAt.toISOString() : null,
       warrantyExpires: order.warrantyExpires ? order.warrantyExpires.toISOString() : null,
-      history: (order.statusHistory ?? []).map(h => ({
+      history: (order.statusHistory ?? []).map((h: AnyDoc) => ({
         status: h.status as string,
         statusLabel: STATUS_LABELS[h.status] ?? h.status,
         comment: h.comment,
