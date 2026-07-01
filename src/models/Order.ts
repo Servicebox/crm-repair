@@ -10,6 +10,7 @@ export type OrderStatus =
   | 'ready'
   | 'issued'
   | 'cancelled'
+  | 'client_declined'
 
 export type OrderType = 'repair' | 'service'
 export type OrderPriority = 'low' | 'normal' | 'high' | 'urgent'
@@ -125,7 +126,7 @@ const OrderSchema = new Schema<IOrder>(
     type: { type: String, enum: ['repair', 'service'], default: 'repair' },
     status: {
       type: String,
-      enum: ['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled'],
+      enum: ['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled', 'client_declined'],
       default: 'new',
     },
     priority: {

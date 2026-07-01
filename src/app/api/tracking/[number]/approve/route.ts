@@ -4,6 +4,7 @@ import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
 import { getModels } from '@/lib/models'
 import Order from '@/models/Order'
 import Company from '@/models/Company'
+import { notifyStaff } from '@/lib/notify'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -52,7 +53,7 @@ export async function POST(
       return NextResponse.json({ error: 'Заказ не ожидает согласования' }, { status: 409 })
     }
 
-    const newStatus = action === 'approve' ? 'in_repair' : 'cancelled'
+    const newStatus = action === 'approve' ? 'in_repair' : 'client_declined'
     const approvalStatus = action === 'approve' ? 'approved' : 'rejected'
     const historyComment = action === 'approve'
       ? `Клиент согласовал ремонт${comment ? `: «${comment}»` : ''}`
@@ -69,6 +70,23 @@ export async function POST(
       createdAt: new Date(),
     })
     await order.save()
+
+    // Fire-and-forget notifications to owners/admins and assigned master
+    if (order.companyId) {
+      const company = await Company.findById(order.companyId).select('dbName').lean() as { dbName?: string } | null
+      const dbName = company?.dbName ?? getDefaultDbName()
+      const companyId = order.companyId.toString()
+      const event = action === 'approve' ? 'client_approved' : 'client_rejected'
+      const payload = {
+        orderNumber: order.number as string,
+        clientName: order.clientName as string,
+        device: [order.deviceBrand, order.deviceModel].filter(Boolean).join(' ') || (order.deviceType as string),
+      }
+      notifyStaff(companyId, dbName, event, payload)
+      if (order.masterId) {
+        notifyStaff(companyId, dbName, event, { ...payload, targetUserId: order.masterId.toString() })
+      }
+    }
 
     return NextResponse.json({ success: true, status: newStatus })
   } catch {

@@ -8,6 +8,7 @@ export const ORDER_STATUSES = [
   { value: 'ready', label: 'Готов к выдаче', color: 'bg-green-100 text-green-700 border-green-200', dot: 'bg-green-500' },
   { value: 'issued', label: 'Выдан', color: 'bg-emerald-100 text-emerald-700 border-emerald-200', dot: 'bg-emerald-600' },
   { value: 'cancelled', label: 'Отменён', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' },
+  { value: 'client_declined', label: 'Отказ от ремонта', color: 'bg-red-100 text-red-800 border-red-300', dot: 'bg-red-600' },
 ] as const
 
 export const PRIORITY_CONFIG = {

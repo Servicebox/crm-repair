@@ -20,7 +20,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 const UpdateStatusSchema = z.object({
-  status: z.enum(['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled']),
+  status: z.enum(['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled', 'client_declined']),
   comment: z.string().optional(),
   paymentMethod: z.enum(['cash', 'card', 'transfer', 'online', 'qr', 'invoice']).default('cash'),
 })

@@ -16,6 +16,7 @@ const STATUS_LABELS: Record<string, string> = {
   ready: 'Готов к выдаче',
   issued: 'Выдан',
   cancelled: 'Отменён',
+  client_declined: 'Отказ от ремонта',
 }
 
 const STATUS_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -28,6 +29,7 @@ const STATUS_ICONS: Record<string, React.ComponentType<{ className?: string }>> 
   ready: CheckCircle,
   issued: CheckCircle,
   cancelled: AlertCircle,
+  client_declined: AlertCircle,
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -40,10 +42,11 @@ const STATUS_COLORS: Record<string, string> = {
   ready: 'text-green-600',
   issued: 'text-emerald-600',
   cancelled: 'text-red-500',
+  client_declined: 'text-red-600',
 }
 
 // Defined order of statuses for the progress timeline
-const STATUS_FLOW = ['new', 'diagnostics', 'waiting_approval', 'in_repair', 'quality_check', 'ready', 'issued']
+const STATUS_FLOW = ['new', 'diagnostics', 'waiting_approval', 'in_repair', 'waiting_parts', 'quality_check', 'ready', 'issued']
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDoc = Record<string, any>
@@ -148,7 +151,8 @@ export default async function TrackPage({ params }: { params: { number: string }
 
   const StatusIcon = STATUS_ICONS[order.status] ?? Clock
   const statusColor = STATUS_COLORS[order.status] ?? 'text-slate-500'
-  const isCancelled = order.status === 'cancelled'
+  const isCancelled = order.status === 'cancelled' || order.status === 'client_declined'
+  const isDeclined = order.status === 'client_declined'
   const isIssued = order.status === 'issued'
 
   // Build timeline from statusHistory (unique statuses in flow order)
@@ -260,6 +264,18 @@ export default async function TrackPage({ params }: { params: { number: string }
             <div className="mt-4 p-3 bg-blue-50 rounded-xl text-sm">
               <div className="font-medium text-blue-700 mb-1">Комментарий мастера</div>
               <div className="text-blue-600">{order.masterComment}</div>
+            </div>
+          )}
+
+          {isDeclined && (
+            <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl text-sm">
+              <div className="font-semibold text-red-700 mb-1">Вы отказались от ремонта</div>
+              <div className="text-red-600">Свяжитесь с сервисным центром для получения устройства.</div>
+              {order.clientApprovalComment && (
+                <div className="mt-2 text-xs text-red-500">
+                  Ваш комментарий: «{order.clientApprovalComment}»
+                </div>
+              )}
             </div>
           )}
 
