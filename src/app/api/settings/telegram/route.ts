@@ -58,12 +58,15 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { token } = RegisterSchema.parse(body)
 
-    // Verify the token is valid with Telegram
+    // Verify token format and reachability
     const me = await tgGetMe(token)
-    if (!me.ok) return err('Неверный токен бота. Проверьте токен в @BotFather.', 400)
+    if (!me.ok) {
+      if (me.network_error) {
+        return err('Сервер не может подключиться к Telegram API. Обратитесь к хостинг-провайдеру чтобы открыть порт 443 на серверах Telegram, или настройте TELEGRAM_PROXY_URL.', 503)
+      }
+      return err('Неверный токен бота. Проверьте токен в @BotFather.', 400)
+    }
 
-    // Generate a random secret that Telegram will send in every webhook request
-    // This prevents anyone who knows the URL from forging requests
     const webhookSecret = crypto.randomBytes(32).toString('hex')
 
     const appUrl =
@@ -78,6 +81,9 @@ export async function POST(req: NextRequest) {
 
     const result = await tgSetWebhook(token, webhookUrl, webhookSecret)
     if (!result.ok) {
+      if (result.description === 'network_error') {
+        return err('Сервер не может подключиться к Telegram API. Обратитесь к хостинг-провайдеру чтобы открыть порт 443 на серверах Telegram, или настройте TELEGRAM_PROXY_URL.', 503)
+      }
       return err(`Ошибка Telegram: ${result.description ?? 'не удалось зарегистрировать webhook'}`, 400)
     }
 
