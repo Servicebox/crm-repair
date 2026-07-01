@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import PrintModal from '@/components/print/PrintModal'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, User, Smartphone, Wrench, CreditCard, Plus, X, Loader2, SlidersHorizontal, CheckCircle, Printer } from 'lucide-react'
@@ -89,6 +90,7 @@ export default function NewOrderPage() {
 
   const [customFields, setCustomFields] = useState<{label: string; value: string}[]>([])
   const [createdOrder, setCreatedOrder] = useState<{_id: string; number: string} | null>(null)
+  const [printModalState, setPrintModalState] = useState<{open: boolean; type: string}>({open: false, type: 'receipt'})
 
   const [prepaymentReceived, setPrepaymentReceived] = useState(false)
   const [printReceipt, setPrintReceipt] = useState(false)
@@ -875,7 +877,7 @@ export default function NewOrderPage() {
                   <button
                     key={type}
                     type="button"
-                    onClick={() => window.open(`/orders/${createdOrder._id}/print?type=${type}`, '_blank')}
+                    onClick={() => setPrintModalState({open: true, type})}
                     className="flex-1 flex flex-col items-center gap-0.5 px-2 py-2 border rounded-lg hover:bg-blue-50 hover:border-blue-200 text-center transition"
                   >
                     <Printer className="w-4 h-4 text-blue-500" />
@@ -915,6 +917,15 @@ export default function NewOrderPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {createdOrder && (
+        <PrintModal
+          orderId={createdOrder._id}
+          isOpen={printModalState.open}
+          onClose={() => setPrintModalState(s => ({...s, open: false}))}
+          initialType={printModalState.type}
+        />
       )}
     </div>
   )

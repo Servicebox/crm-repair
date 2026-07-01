@@ -41,7 +41,7 @@ type Order = Record<string, any>
 
 interface PrintModalProps {
   orderId: string
-  order: Order
+  order?: Order | null
   isOpen: boolean
   onClose: () => void
   initialType?: string
@@ -452,11 +452,22 @@ function DocumentContent({
 
 // ---------- modal ----------
 
-export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, initialType = 'receipt' }: PrintModalProps) {
+export default function PrintModal({ orderId, order: orderProp, isOpen, onClose, initialType = 'receipt' }: PrintModalProps) {
   const [printType, setPrintType] = useState(initialType)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [reviewQrDataUrl, setReviewQrDataUrl] = useState('')
   const [mounted, setMounted] = useState(false)
+
+  // Self-fetch order when only orderId is provided (e.g. from new-order page)
+  const { data: fetchedOrder } = useQuery({
+    queryKey: ['order-print', orderId],
+    queryFn: async () => {
+      const r = await fetch(`/api/orders/${orderId}`)
+      return (await r.json()).data as Order
+    },
+    enabled: isOpen && !orderProp && !!orderId,
+  })
+  const order = orderProp ?? fetchedOrder
 
   // Hydration guard — portal requires browser DOM
   useEffect(() => { setMounted(true) }, [])
@@ -518,6 +529,14 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
   const trackUrl = `${window.location.origin}/track/${trackId}`
   const isReady = !!(companyData && order)
 
+  const handlePrint = () => {
+    document.body.classList.add('crm-printing')
+    window.print()
+    window.addEventListener('afterprint', () => {
+      document.body.classList.remove('crm-printing')
+    }, { once: true })
+  }
+
   return createPortal(
     <div id="crm-print-portal" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.65)' }}>
 
@@ -557,7 +576,7 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
         {/* Actions */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
               padding: '7px 16px', background: '#2563eb', color: '#fff',
