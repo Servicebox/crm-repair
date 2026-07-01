@@ -538,19 +538,17 @@ export default function PrintModal({ orderId, order: orderProp, isOpen, onClose,
   }
 
   return createPortal(
-    <div id="crm-print-portal" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.65)' }}>
+    <div id="crm-print-portal" style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', flexDirection: 'column', background: '#f1f5f9' }}>
 
       {/* ── Toolbar (hidden when printing) ── */}
       <div id="crm-print-toolbar" style={{
-        background: '#ffffff',
-        borderBottom: '1px solid #e5e7eb',
-        padding: '8px 16px',
+        background: '#1e293b',
+        padding: '10px 16px',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
         flexShrink: 0,
         flexWrap: 'wrap',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
       }}>
         {/* Doc type tabs */}
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', flex: 1 }}>
@@ -562,12 +560,12 @@ export default function PrintModal({ orderId, order: orderProp, isOpen, onClose,
                 display: 'flex', alignItems: 'center', gap: 6,
                 padding: '6px 12px', fontSize: 12, borderRadius: 8,
                 border: 'none', cursor: 'pointer', fontWeight: 500,
-                background: printType === type ? '#2563eb' : '#f1f5f9',
-                color: printType === type ? '#fff' : '#475569',
+                background: printType === type ? '#3b82f6' : 'rgba(255,255,255,0.08)',
+                color: printType === type ? '#fff' : '#94a3b8',
                 transition: 'all 0.15s',
               }}
             >
-              <Icon style={{ width: 14, height: 14 }} />
+              <Icon style={{ width: 13, height: 13 }} />
               {label}
             </button>
           ))}
@@ -579,23 +577,23 @@ export default function PrintModal({ orderId, order: orderProp, isOpen, onClose,
             onClick={handlePrint}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '7px 16px', background: '#2563eb', color: '#fff',
-              border: 'none', borderRadius: 8, fontSize: 14,
-              cursor: 'pointer', fontWeight: 600,
+              padding: '7px 18px', background: '#3b82f6', color: '#fff',
+              border: 'none', borderRadius: 8, fontSize: 13,
+              cursor: 'pointer', fontWeight: 600, letterSpacing: '0.01em',
             }}
           >
-            <Printer style={{ width: 16, height: 16 }} /> Печать
+            <Printer style={{ width: 15, height: 15 }} /> Печать
           </button>
           <button
             onClick={onClose}
             style={{
               width: 34, height: 34,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: '#f1f5f9', border: 'none', borderRadius: 8, cursor: 'pointer',
+              background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: 8, cursor: 'pointer',
             }}
-            title="Закрыть"
+            title="Закрыть (Esc)"
           >
-            <X style={{ width: 16, height: 16, color: '#64748b' }} />
+            <X style={{ width: 15, height: 15, color: '#94a3b8' }} />
           </button>
         </div>
       </div>
@@ -603,15 +601,15 @@ export default function PrintModal({ orderId, order: orderProp, isOpen, onClose,
       {/* ── Document preview area ── */}
       <div
         id="crm-print-scroll"
-        style={{ flex: 1, overflowY: 'auto', background: '#e2e8f0', padding: '32px 16px' }}
+        style={{ flex: 1, overflowY: 'auto', padding: '32px 16px' }}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
       >
         <div id="crm-print-sheet" style={{
           maxWidth: printType === 'label' ? 360 : 800,
           margin: '0 auto',
           background: '#fff',
-          borderRadius: 4,
-          boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+          borderRadius: 6,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.12), 0 1px 4px rgba(0,0,0,0.08)',
           overflow: 'hidden',
           minHeight: 400,
         }}>
@@ -631,8 +629,6 @@ export default function PrintModal({ orderId, order: orderProp, isOpen, onClose,
               trackUrl={trackUrl}
             />
           )}
-        </div>
-        <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 12 }}>
         </div>
       </div>
     </div>,

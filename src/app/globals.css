@@ -109,47 +109,65 @@
     -webkit-print-color-adjust: exact;
   }
 
-  /* Print modal isolation — hides all dashboard chrome when #crm-print-portal is present.
-     Two selector variants: :has() (Chrome/Safari) + body.crm-printing (Firefox fallback). */
-  body:has(#crm-print-portal) > *:not(#crm-print-portal),
-  body.crm-printing > *:not(#crm-print-portal) {
-    display: none !important;
-  }
-  body:has(#crm-print-portal) header,
-  body:has(#crm-print-portal) aside,
-  body:has(#crm-print-portal) nav,
-  body.crm-printing header,
-  body.crm-printing aside,
-  body.crm-printing nav {
+  /* ── Print isolation ──────────────────────────────────────────────────────
+     When the print modal is open, hide ALL site chrome and show only the
+     document inside #crm-print-portal.
+
+     Strategy:
+     1.  body.crm-printing  — JS adds this class right before window.print()
+     2.  body:has()         — :has() CSS fallback (no JS class needed in Chrome)
+
+     BOTH are needed: :has() fires even without the class (always true when
+     modal is open), but .crm-printing is what actually triggers the correct
+     print layout after the body class is set synchronously.
+  ─────────────────────────────────────────────────────────────────────────── */
+
+  /* 1 — Hide every direct child of <body> except the print portal */
+  body.crm-printing > *:not(#crm-print-portal),
+  body:has(#crm-print-portal) > *:not(#crm-print-portal) {
     display: none !important;
     visibility: hidden !important;
   }
-  body:has(#crm-print-portal) #crm-print-portal,
-  body.crm-printing #crm-print-portal {
+
+  /* 2 — Reset the portal from fixed/flex to static block so it flows from page top */
+  body.crm-printing #crm-print-portal,
+  body:has(#crm-print-portal) #crm-print-portal {
     display: block !important;
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    position: static !important;
+    top: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    left: auto !important;
     width: 100% !important;
-    overflow: visible !important;
+    height: auto !important;
     background: white !important;
+    overflow: visible !important;
   }
-  body:has(#crm-print-portal) #crm-print-toolbar,
-  body.crm-printing #crm-print-toolbar {
+
+  /* 3 — Hide the UI toolbar (tabs + print button) */
+  body.crm-printing #crm-print-toolbar,
+  body:has(#crm-print-portal) #crm-print-toolbar {
     display: none !important;
   }
-  body:has(#crm-print-portal) #crm-print-scroll,
-  body.crm-printing #crm-print-scroll {
+
+  /* 4 — Make the scroll wrapper transparent and auto-height */
+  body.crm-printing #crm-print-scroll,
+  body:has(#crm-print-portal) #crm-print-scroll {
     overflow: visible !important;
     height: auto !important;
+    min-height: auto !important;
+    flex: none !important;
     background: white !important;
     padding: 0 !important;
   }
-  body:has(#crm-print-portal) #crm-print-sheet,
-  body.crm-printing #crm-print-sheet {
+
+  /* 5 — Strip decorative styles from the document sheet */
+  body.crm-printing #crm-print-sheet,
+  body:has(#crm-print-portal) #crm-print-sheet {
     box-shadow: none !important;
     border-radius: 0 !important;
     max-width: none !important;
     margin: 0 !important;
+    min-height: auto !important;
   }
 }
