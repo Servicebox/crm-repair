@@ -51,7 +51,7 @@ const NAV: NavItem[] = [
     icon: ShoppingBag,
     children: [
       { label: 'Касса', href: '/sales', icon: ShoppingBag },
-      { label: 'Запасные части', href: '/warehouse', icon: Package },
+      { label: 'Склад', href: '/warehouse', icon: Package },
       { label: 'Маркетплейс', href: '/marketplace', icon: Store },
     ],
   },

@@ -3,7 +3,7 @@ import { useState, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, Package, AlertTriangle, Loader2, X, Edit2,
-  ScanLine, Truck, ArrowLeftRight, Folder, Barcode, ToggleLeft, ToggleRight,
+  ScanLine, Truck, Folder, Barcode, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { formatCurrency } from '@/lib/utils'
 import { cn } from '@/lib/utils'
@@ -37,7 +37,6 @@ const EMPTY_FORM = {
 
 export default function WarehousePage() {
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<'part' | 'product'>('part')
   const [search, setSearch] = useState('')
   const [stock, setStock] = useState<'all' | 'low' | 'out'>('all')
   const [category, setCategory] = useState('')
@@ -52,12 +51,13 @@ export default function WarehousePage() {
   const [receivingQty, setReceivingQty] = useState('')
   const [receivingSupplier, setReceivingSupplier] = useState('')
   const [receivingCost, setReceivingCost] = useState('')
+  const [receivingSearch, setReceivingSearch] = useState('')
   const scanRef = useRef<HTMLInputElement>(null)
 
   const { data: products, isLoading } = useQuery({
-    queryKey: ['warehouse', search, stock, tab],
+    queryKey: ['warehouse', search, stock],
     queryFn: async () => {
-      const p = new URLSearchParams({ productType: tab })
+      const p = new URLSearchParams()
       if (search) p.set('search', search)
       if (stock !== 'all') p.set('stock', stock)
       const res = await fetch(`/api/warehouse?${p}`)
@@ -68,20 +68,25 @@ export default function WarehousePage() {
 
   const list = products ?? []
 
-  // Stats
   const totalQty = list.reduce((s, p) => s + p.quantity, 0)
   const lowCount = list.filter(p => p.quantity > 0 && p.quantity <= p.minQuantity).length
   const outCount = list.filter(p => p.quantity === 0).length
   const totalCost = list.reduce((s, p) => s + p.cost * p.quantity, 0)
 
-  // Categories from current list
   const categories = Array.from(new Set(list.map(p => p.category).filter(Boolean))) as string[]
-
   const filteredList = category ? list.filter(p => p.category === category) : list
+
+  // Filtered list for receiving modal search
+  const receivingFiltered = receivingSearch.trim()
+    ? list.filter(p =>
+        p.name.toLowerCase().includes(receivingSearch.toLowerCase()) ||
+        (p.sku ?? '').toLowerCase().includes(receivingSearch.toLowerCase())
+      )
+    : list
 
   function openCreate() {
     setEditItem(null)
-    setForm({ ...EMPTY_FORM, productType: tab })
+    setForm({ ...EMPTY_FORM })
     setShowForm(true)
   }
 
@@ -143,18 +148,32 @@ export default function WarehousePage() {
       }),
     })
     queryClient.invalidateQueries({ queryKey: ['warehouse'] })
+    closeReceiving()
+  }
+
+  function openReceiving(p?: Product) {
+    setReceivingItem(p ?? null)
+    setReceivingSupplier(p?.supplier ?? '')
+    setReceivingCost(p?.cost ? String(p.cost) : '')
+    setReceivingQty('')
+    setReceivingSearch('')
+    setShowReceiving(true)
+  }
+
+  function closeReceiving() {
     setShowReceiving(false)
     setReceivingItem(null)
     setReceivingQty('')
     setReceivingSupplier('')
     setReceivingCost('')
+    setReceivingSearch('')
   }
 
-  function openReceiving(p: Product) {
+  function selectReceivingItem(p: Product) {
     setReceivingItem(p)
     setReceivingSupplier(p.supplier ?? '')
     setReceivingCost(p.cost ? String(p.cost) : '')
-    setShowReceiving(true)
+    setReceivingQty('')
   }
 
   const handleScannerInput = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -213,7 +232,6 @@ export default function WarehousePage() {
           </>
         )}
 
-        {/* Scanner indicator */}
         <div className="mt-auto pt-3 border-t">
           <div className={cn('flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg', scannerActive ? 'text-green-700 bg-green-50' : 'text-muted-foreground')}>
             <Barcode className="w-3.5 h-3.5" />
@@ -228,7 +246,7 @@ export default function WarehousePage() {
           {/* Header */}
           <div className="flex items-start justify-between mb-5 gap-4 flex-wrap">
             <div>
-              <h1 className="text-xl font-bold">Запасные части</h1>
+              <h1 className="text-xl font-bold">Склад</h1>
               <p className="text-xs text-muted-foreground mt-0.5">Управление складскими запасами</p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
@@ -241,7 +259,7 @@ export default function WarehousePage() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowReceiving(true)}
+                onClick={() => openReceiving()}
                 className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border hover:bg-accent transition"
               >
                 <Truck className="w-4 h-4" /> Приёмка
@@ -256,41 +274,27 @@ export default function WarehousePage() {
             </div>
           </div>
 
-          {/* Tabs + mobile category selector */}
-          <div className="flex items-center gap-3 border-b mb-5 flex-wrap">
-            <div className="flex">
-              {([['part', 'Запчасти'], ['product', 'Товары']] as const).map(([val, label]) => (
-                <button
-                  key={val}
-                  type="button"
-                  onClick={() => { setTab(val); setCategory('') }}
-                  className={cn('py-2.5 px-4 text-sm font-medium border-b-2 transition-colors -mb-px',
-                    tab === val ? 'border-blue-600 text-blue-600' : 'border-transparent text-muted-foreground hover:text-foreground')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-            {/* Category dropdown for small/medium screens (sidebar is hidden on <lg) */}
-            {categories.length > 0 && (
+          {/* Category dropdown for small screens */}
+          {categories.length > 0 && (
+            <div className="mb-4 lg:hidden">
               <select
                 value={category}
                 onChange={e => setCategory(e.target.value)}
-                className="lg:hidden ml-auto text-xs border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px]"
+                className="text-xs border rounded-lg px-2 py-1.5 bg-background outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Все категории</option>
                 {categories.map(c => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-5">
             {[
-              { label: 'Позиций', value: list.length, },
-              { label: 'Единиц', value: totalQty, },
+              { label: 'Позиций', value: list.length },
+              { label: 'Единиц', value: totalQty },
               { label: 'Мало', value: lowCount, color: lowCount > 0 ? 'text-orange-600' : undefined },
               { label: 'Нет', value: outCount, color: outCount > 0 ? 'text-red-600' : undefined },
               { label: 'Себестоимость', value: formatCurrency(totalCost) },
@@ -340,7 +344,7 @@ export default function WarehousePage() {
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground">Наименование</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden md:table-cell">Артикул</th>
                     <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden sm:table-cell">Категория</th>
-                    {tab === 'part' && <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Место</th>}
+                    <th className="px-4 py-3 text-left font-medium text-muted-foreground hidden lg:table-cell">Место</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Кол-во</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground hidden sm:table-cell">Себест.</th>
                     <th className="px-4 py-3 text-right font-medium text-muted-foreground">Цена</th>
@@ -370,7 +374,7 @@ export default function WarehousePage() {
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-muted-foreground hidden md:table-cell">{p.sku ?? '—'}</td>
                       <td className="px-4 py-3 text-muted-foreground hidden sm:table-cell">{p.category ?? '—'}</td>
-                      {tab === 'part' && <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">{p.location ?? '—'}</td>}
+                      <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">{p.location ?? '—'}</td>
                       <td className={cn('px-4 py-3 text-right font-semibold', p.quantity === 0 ? 'text-red-500' : p.quantity <= p.minQuantity ? 'text-orange-600' : '')}>
                         {p.quantity}
                       </td>
@@ -404,22 +408,10 @@ export default function WarehousePage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-background rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b sticky top-0 bg-background">
-              <h2 className="font-semibold">{editItem ? 'Редактировать' : `Новая ${form.productType === 'part' ? 'запчасть' : 'товар'}`}</h2>
+              <h2 className="font-semibold">{editItem ? 'Редактировать товар' : 'Новый товар'}</h2>
               <button type="button" onClick={() => setShowForm(false)} className="p-1.5 hover:bg-accent rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <form onSubmit={handleSave} className="p-5 space-y-4">
-              {/* Type selector */}
-              {!editItem && (
-                <div className="flex rounded-lg border overflow-hidden">
-                  {([['part', 'Запчасть'], ['product', 'Товар магазина']] as const).map(([val, label]) => (
-                    <button key={val} type="button"
-                      onClick={() => setForm(f => ({ ...f, productType: val }))}
-                      className={cn('flex-1 py-2 text-sm font-medium transition-colors', form.productType === val ? 'bg-blue-600 text-white' : 'hover:bg-accent')}
-                    >{label}</button>
-                  ))}
-                </div>
-              )}
-
               <div>
                 <label className="block text-sm font-medium mb-1">Наименование <span className="text-red-500">*</span></label>
                 <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
@@ -456,27 +448,25 @@ export default function WarehousePage() {
                 </div>
               </div>
 
-              {form.productType === 'part' && (
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Состояние</label>
-                    <select value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value as 'new' | 'used' }))}
-                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
-                      <option value="new">Новая</option>
-                      <option value="used">Б/У</option>
-                    </select>
-                  </div>
-                  <div className="flex items-end pb-0.5">
-                    <label className="flex items-center gap-2 text-sm cursor-pointer">
-                      <button type="button" onClick={() => setForm(f => ({ ...f, serialTracking: !f.serialTracking }))}
-                        className={cn('transition-colors', form.serialTracking ? 'text-blue-600' : 'text-muted-foreground')}>
-                        {form.serialTracking ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
-                      </button>
-                      Серийные номера
-                    </label>
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Состояние</label>
+                  <select value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value as 'new' | 'used' }))}
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background">
+                    <option value="new">Новое</option>
+                    <option value="used">Б/У</option>
+                  </select>
                 </div>
-              )}
+                <div className="flex items-end pb-0.5">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <button type="button" onClick={() => setForm(f => ({ ...f, serialTracking: !f.serialTracking }))}
+                      className={cn('transition-colors', form.serialTracking ? 'text-blue-600' : 'text-muted-foreground')}>
+                      {form.serialTracking ? <ToggleRight className="w-6 h-6" /> : <ToggleLeft className="w-6 h-6" />}
+                    </button>
+                    Серийные номера
+                  </label>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -534,43 +524,115 @@ export default function WarehousePage() {
       {/* Receiving modal */}
       {showReceiving && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-background rounded-2xl w-full max-w-sm shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="font-semibold flex items-center gap-2"><Truck className="w-4 h-4" /> Приёмка</h2>
-              <button type="button" onClick={() => { setShowReceiving(false); setReceivingItem(null) }} className="p-1.5 hover:bg-accent rounded-lg transition"><X className="w-4 h-4" /></button>
+          <div className="bg-background rounded-2xl w-full max-w-sm shadow-2xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between p-5 border-b shrink-0">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Truck className="w-4 h-4" />
+                {receivingItem ? 'Приёмка товара' : 'Выберите товар'}
+              </h2>
+              <button type="button" onClick={closeReceiving} className="p-1.5 hover:bg-accent rounded-lg transition">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <form onSubmit={handleReceiving} className="p-5 space-y-3">
-              {!receivingItem ? (
-                <div>
-                  <p className="text-sm text-muted-foreground mb-3">Выберите товар из таблицы или найдите ниже</p>
-                  <button type="button" onClick={() => setShowReceiving(false)} className="w-full py-2 border rounded-lg text-sm hover:bg-accent">Закрыть</button>
+
+            {!receivingItem ? (
+              /* Step 1: item selection */
+              <div className="flex flex-col min-h-0 flex-1">
+                <div className="p-3 border-b shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <input
+                      autoFocus
+                      value={receivingSearch}
+                      onChange={e => setReceivingSearch(e.target.value)}
+                      placeholder="Поиск по названию или артикулу..."
+                      className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
-              ) : (
-                <>
-                  <div className="bg-accent/50 rounded-lg px-3 py-2 text-sm font-medium">{receivingItem.name}</div>
-                  <div className="text-xs text-muted-foreground">Текущий остаток: {receivingItem.quantity} шт.</div>
+                <div className="overflow-y-auto flex-1 p-2">
+                  {receivingFiltered.length === 0 ? (
+                    <div className="text-center py-10 text-muted-foreground text-sm">
+                      <Package className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      {receivingSearch ? 'Ничего не найдено' : 'Склад пуст'}
+                    </div>
+                  ) : (
+                    receivingFiltered.map(p => (
+                      <button
+                        key={p._id}
+                        type="button"
+                        onClick={() => selectReceivingItem(p)}
+                        className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-accent transition-colors"
+                      >
+                        <div className="font-medium text-sm">{p.name}</div>
+                        <div className="flex items-center gap-3 mt-0.5">
+                          {p.sku && <span className="text-xs text-muted-foreground font-mono">{p.sku}</span>}
+                          <span className={cn('text-xs', p.quantity === 0 ? 'text-red-500' : 'text-muted-foreground')}>
+                            {p.quantity === 0 ? 'Нет в наличии' : `В наличии: ${p.quantity} шт.`}
+                          </span>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="p-3 border-t shrink-0">
+                  <button type="button" onClick={closeReceiving} className="w-full py-2 border rounded-lg text-sm hover:bg-accent transition">
+                    Отмена
+                  </button>
+                </div>
+              </div>
+            ) : (
+              /* Step 2: quantity / cost form */
+              <form onSubmit={handleReceiving} className="p-5 space-y-3 overflow-y-auto">
+                <div className="bg-accent/50 rounded-lg px-3 py-2 flex items-center justify-between gap-2">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Количество к приёмке *</label>
-                    <input type="number" value={receivingQty} onChange={e => setReceivingQty(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={1} required autoFocus />
+                    <div className="text-sm font-medium">{receivingItem.name}</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">В наличии: {receivingItem.quantity} шт.</div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Поставщик / Контрагент</label>
-                    <input value={receivingSupplier} onChange={e => setReceivingSupplier(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Закупочная цена ₽</label>
-                    <input type="number" value={receivingCost} onChange={e => setReceivingCost(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500" min={0} />
-                  </div>
-                  <div className="flex gap-2 pt-1">
-                    <button type="button" onClick={() => { setShowReceiving(false); setReceivingItem(null) }} className="flex-1 py-2.5 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
-                    <button type="submit" className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition">Принять</button>
-                  </div>
-                </>
-              )}
-            </form>
+                  <button
+                    type="button"
+                    onClick={() => setReceivingItem(null)}
+                    className="text-xs text-blue-600 hover:underline shrink-0"
+                  >
+                    Изменить
+                  </button>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Количество к приёмке <span className="text-red-500">*</span></label>
+                  <input
+                    type="number"
+                    value={receivingQty}
+                    onChange={e => setReceivingQty(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    min={1}
+                    required
+                    autoFocus
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Поставщик / Контрагент</label>
+                  <input
+                    value={receivingSupplier}
+                    onChange={e => setReceivingSupplier(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Закупочная цена ₽</label>
+                  <input
+                    type="number"
+                    value={receivingCost}
+                    onChange={e => setReceivingCost(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    min={0}
+                  />
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button type="button" onClick={closeReceiving} className="flex-1 py-2.5 border rounded-lg text-sm hover:bg-accent transition">Отмена</button>
+                  <button type="submit" className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition">Принять</button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
