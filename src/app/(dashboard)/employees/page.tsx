@@ -2,7 +2,7 @@
 import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
-import { Plus, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera, Eye, EyeOff, Copy, KeyRound } from 'lucide-react'
+import { Plus, Mail, Phone, Shield, Loader2, X, Edit2, DollarSign, CheckCircle, Clock, Trash2, Camera, Eye, EyeOff, Copy, KeyRound, Send, LinkIcon, Unlink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/utils'
 import {
@@ -81,6 +81,16 @@ function currentMonth(): string {
 }
 
 type Tab = 'employees' | 'payroll'
+
+interface TgModalState {
+  empId: string
+  empName: string
+  phase: 'loading' | 'none' | 'pending' | 'active' | 'error'
+  code?: string
+  expiresAt?: string
+  chatName?: string
+  errorMsg?: string
+}
 
 function FlexRuleRow({
   rule,
@@ -234,6 +244,56 @@ export default function EmployeesPage() {
     if (s <= 2) return { score: s, label: 'Средний', color: 'bg-amber-500' }
     if (s <= 3) return { score: s, label: 'Хороший', color: 'bg-yellow-400' }
     return { score: s, label: 'Надёжный', color: 'bg-green-500' }
+  }
+
+  const [tgModal, setTgModal] = useState<TgModalState | null>(null)
+
+  async function openTgModal(emp: Employee) {
+    setTgModal({ empId: emp._id, empName: emp.name, phase: 'loading' })
+    try {
+      const res = await fetch(`/api/employees/${emp._id}/link-telegram`)
+      const json = await res.json()
+      const d = json.data
+      if (!d || d.status === 'none') {
+        setTgModal(s => s ? { ...s, phase: 'none' } : s)
+      } else if (d.status === 'active') {
+        setTgModal(s => s ? { ...s, phase: 'active', chatName: d.userName } : s)
+      } else if (d.status === 'pending') {
+        setTgModal(s => s ? { ...s, phase: 'pending', code: d.linkCode, expiresAt: d.linkCodeExpires } : s)
+      } else {
+        setTgModal(s => s ? { ...s, phase: 'none' } : s)
+      }
+    } catch {
+      setTgModal(s => s ? { ...s, phase: 'error', errorMsg: 'Ошибка загрузки' } : s)
+    }
+  }
+
+  async function generateTgCode() {
+    if (!tgModal) return
+    setTgModal(s => s ? { ...s, phase: 'loading' } : s)
+    try {
+      const res = await fetch(`/api/employees/${tgModal.empId}/link-telegram`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) {
+        setTgModal(s => s ? { ...s, phase: 'error', errorMsg: json.error ?? 'Ошибка' } : s)
+        return
+      }
+      const d = json.data
+      if (d.status === 'active') {
+        setTgModal(s => s ? { ...s, phase: 'active', chatName: d.userName } : s)
+      } else {
+        setTgModal(s => s ? { ...s, phase: 'pending', code: d.code, expiresAt: d.expiresAt } : s)
+      }
+    } catch {
+      setTgModal(s => s ? { ...s, phase: 'error', errorMsg: 'Ошибка сети' } : s)
+    }
+  }
+
+  async function unlinkTelegram() {
+    if (!tgModal) return
+    await fetch(`/api/employees/${tgModal.empId}/link-telegram`, { method: 'DELETE' })
+    setTgModal(null)
+    queryClient.invalidateQueries({ queryKey: ['employees'] })
   }
 
   const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
@@ -545,26 +605,35 @@ export default function EmployeesPage() {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <button onClick={() => openEdit(emp)} className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition" title="Редактировать"><Edit2 className="w-3.5 h-3.5" /></button>
                     {isPrivileged && (
-                      <button
-                        onClick={async () => {
-                          if (!window.confirm(`Удалить сотрудника ${emp.name}? Это действие необратимо.`)) return
-                          try {
-                            const res = await fetch(`/api/employees/${emp._id}`, { method: 'DELETE' })
-                            if (!res.ok) {
-                              const json = await res.json().catch(() => ({}))
-                              alert(json.error ?? 'Ошибка удаления сотрудника')
-                              return
+                      <>
+                        <button
+                          onClick={() => openTgModal(emp)}
+                          className="p-1.5 hover:bg-blue-100 text-blue-500 rounded-lg transition"
+                          title="Привязать Telegram"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={async () => {
+                            if (!window.confirm(`Удалить сотрудника ${emp.name}? Это действие необратимо.`)) return
+                            try {
+                              const res = await fetch(`/api/employees/${emp._id}`, { method: 'DELETE' })
+                              if (!res.ok) {
+                                const json = await res.json().catch(() => ({}))
+                                alert(json.error ?? 'Ошибка удаления сотрудника')
+                                return
+                              }
+                              queryClient.invalidateQueries({ queryKey: ['employees'] })
+                            } catch {
+                              alert('Ошибка сети при удалении сотрудника')
                             }
-                            queryClient.invalidateQueries({ queryKey: ['employees'] })
-                          } catch {
-                            alert('Ошибка сети при удалении сотрудника')
-                          }
-                        }}
-                        className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg transition"
-                        title="Удалить"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                          }}
+                          className="p-1.5 hover:bg-red-100 text-red-500 rounded-lg transition"
+                          title="Удалить"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </>
                     )}
                     <div className="flex-1" />
                     <button onClick={() => handleToggleActive(emp)} className={cn('px-2 py-1 rounded-lg text-xs font-medium transition shrink-0', emp.isActive ? 'bg-red-100 text-red-600 hover:bg-red-200' : 'bg-green-100 text-green-600 hover:bg-green-200')}>
@@ -1029,6 +1098,119 @@ export default function EmployeesPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Telegram Link Modal */}
+      {tgModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 relative">
+            <button
+              onClick={() => setTgModal(null)}
+              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
+                <Send className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-base">Telegram</h3>
+                <p className="text-sm text-muted-foreground truncate max-w-[200px]">{tgModal.empName}</p>
+              </div>
+            </div>
+
+            {tgModal.phase === 'loading' && (
+              <div className="flex flex-col items-center gap-3 py-6">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-500" />
+                <p className="text-sm text-muted-foreground">Загрузка...</p>
+              </div>
+            )}
+
+            {tgModal.phase === 'none' && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Сотрудник ещё не привязан к Telegram. Сгенерируйте код и попросите сотрудника отправить его боту компании.
+                </p>
+                <button
+                  onClick={generateTgCode}
+                  className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-medium transition flex items-center justify-center gap-2"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  Сгенерировать код
+                </button>
+              </div>
+            )}
+
+            {tgModal.phase === 'pending' && (
+              <div className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Попросите сотрудника открыть Telegram-бот компании и отправить команду:
+                </p>
+                <div className="bg-slate-50 border rounded-xl p-4 flex items-center justify-between gap-3">
+                  <code className="text-base font-mono font-semibold text-slate-800 tracking-wider">
+                    /link {tgModal.code}
+                  </code>
+                  <button
+                    onClick={() => navigator.clipboard.writeText(`/link ${tgModal.code}`)}
+                    className="p-1.5 hover:bg-slate-200 rounded-lg transition text-slate-500"
+                    title="Копировать"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+                {tgModal.expiresAt && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    Код действует 24 часа
+                  </p>
+                )}
+                <button
+                  onClick={generateTgCode}
+                  className="w-full py-2 border rounded-xl text-sm text-muted-foreground hover:bg-slate-50 transition"
+                >
+                  Обновить код
+                </button>
+              </div>
+            )}
+
+            {tgModal.phase === 'active' && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 p-3 bg-green-50 border border-green-200 rounded-xl">
+                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800">Привязан</p>
+                    {tgModal.chatName && (
+                      <p className="text-xs text-green-700">@{tgModal.chatName}</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={unlinkTelegram}
+                  className="w-full py-2.5 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-sm font-medium transition flex items-center justify-center gap-2"
+                >
+                  <Unlink className="w-4 h-4" />
+                  Отвязать Telegram
+                </button>
+              </div>
+            )}
+
+            {tgModal.phase === 'error' && (
+              <div className="space-y-4">
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  {tgModal.errorMsg ?? 'Произошла ошибка'}
+                </div>
+                <button
+                  onClick={() => tgModal && openTgModal({ _id: tgModal.empId, name: tgModal.empName } as Employee)}
+                  className="w-full py-2 border rounded-xl text-sm hover:bg-slate-50 transition"
+                >
+                  Повторить
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
