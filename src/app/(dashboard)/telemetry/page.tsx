@@ -1,5 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, TrendingDown, CheckCircle, Users, DollarSign,
@@ -114,8 +116,16 @@ async function fetchStats(apiPeriod: string): Promise<StatsData> {
 }
 
 export default function TelemetryPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
   const [period, setPeriod] = useState<PeriodKey>('30d')
   const apiPeriod = PERIODS.find(p => p.key === period)?.apiPeriod ?? 'month'
+
+  useEffect(() => {
+    if (session?.user?.permissions && !session.user.permissions.canViewTelemetry) {
+      router.replace('/dashboard')
+    }
+  }, [session, router])
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['stats', apiPeriod],

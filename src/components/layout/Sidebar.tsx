@@ -21,6 +21,7 @@ interface NavItem {
   badge?: string | number
   roles?: string[]
   platformOnly?: boolean
+  permission?: string
 }
 
 const NAV: NavItem[] = [
@@ -32,7 +33,7 @@ const NAV: NavItem[] = [
       { label: 'Заказы', href: '/orders', icon: ClipboardList },
       { label: 'Мои заказы', href: '/my-orders', icon: ClipboardList },
       { label: 'Мой заработок', href: '/my-earnings', icon: DollarSign },
-      { label: 'Телеметрия', href: '/telemetry', icon: BarChart2 },
+      { label: 'Телеметрия', href: '/telemetry', icon: BarChart2, permission: 'canViewTelemetry' },
       { label: 'AI-помощник', href: '/ai', icon: Bot },
     ],
   },
@@ -86,7 +87,7 @@ const NAV: NavItem[] = [
       { label: 'Подписка', href: '/settings/billing', icon: CreditCard, roles: ['owner'] },
     ],
   },
-  { label: 'Настройки', href: '/settings', icon: Settings },
+  { label: 'Настройки', href: '/settings', icon: Settings, permission: 'canManageSettings' },
   { label: 'Справка', href: '/help', icon: HelpCircle },
   { label: 'Поддержка', href: '/support', icon: HelpCircle },
   { label: 'Платформа', href: '/platform', icon: Globe, platformOnly: true },
@@ -104,6 +105,7 @@ function NavItemComponent({ item, depth = 0 }: { item: NavItem; depth?: number }
 
   if (item.roles && !item.roles.includes(userRole ?? '')) return null
   if (item.platformOnly && !session?.user?.isPlatformOwner) return null
+  if (item.permission && session?.user?.permissions && !session.user.permissions[item.permission]) return null
 
   if (item.children) {
     return (

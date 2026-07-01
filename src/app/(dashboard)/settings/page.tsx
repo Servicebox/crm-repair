@@ -1,5 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, Loader2, Building2, Palette, Bell, Wrench, Shield } from 'lucide-react'
 import { LogoUpload } from '@/components/ui/ImageUpload'
@@ -38,8 +40,16 @@ const TABS = [
 ]
 
 export default function SettingsPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState('company')
+
+  useEffect(() => {
+    if (session?.user?.permissions && !session.user.permissions.canManageSettings) {
+      router.replace('/dashboard')
+    }
+  }, [session, router])
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [form, setForm] = useState<Record<string, unknown>>({})

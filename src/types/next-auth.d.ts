@@ -13,6 +13,7 @@ declare module 'next-auth' {
       subscriptionStatus?: string
       pastDueUntil?: Date
       isPlatformOwner?: boolean
+      permissions?: Record<string, boolean>
     }
   }
   interface User {

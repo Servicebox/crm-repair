@@ -3,8 +3,9 @@ import Credentials from 'next-auth/providers/credentials'
 import { authConfig } from '@/auth.config'
 import { connectToDatabase } from '@/lib/mongodb'
 import { getTenantConnection, getDefaultDbName } from '@/lib/tenantDb'
-import User, { getUserModel } from '@/models/User'
+import User, { getUserModel, type IUserPermissions } from '@/models/User'
 import Company from '@/models/Company'
+import { getEffectivePermissions } from '@/lib/permissions'
 
 class EmailNotVerifiedError extends CredentialsSignin {
   code = 'EMAIL_NOT_VERIFIED'
@@ -41,12 +42,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const dbUser = await userModel.findById(token.id)
-          .select('role companyId isActive')
-          .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean } | null
+          .select('role companyId isActive permissions')
+          .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean; permissions?: Partial<IUserPermissions> } | null
 
         if (!dbUser?.isActive) return session
 
         session.user.role = dbUser.role ?? ''
+        session.user.permissions = getEffectivePermissions({
+          role: dbUser.role ?? 'master',
+          permissions: dbUser.permissions,
+        }) as unknown as Record<string, boolean>
 
         const rawCompanyId = dbUser.companyId?.toString() ?? ''
         if (rawCompanyId) {
