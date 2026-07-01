@@ -173,7 +173,7 @@ export default async function TrackPage({ params }: { params: { number: string }
         {order.company && (
           <div className="text-center mb-6 pt-4">
             {order.company.logo && (
-              <img src={order.company.logo} alt={order.company.name} className="h-10 mx-auto mb-2 object-contain" />
+              <img src={order.company.logo} alt={order.company.name} className="h-10 mx-auto mb-2 object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
             )}
             <h2 className="font-bold text-slate-800">{order.company.name}</h2>
             {order.company.phone && <p className="text-sm text-slate-500">{order.company.phone}</p>}

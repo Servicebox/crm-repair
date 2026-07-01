@@ -232,6 +232,7 @@ export default function Sidebar() {
   const { mobileOpen, setMobileOpen } = useSidebar()
   const [collapsed, setCollapsed] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
+  const userInitials = (session?.user?.name ?? 'U').trim().split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
 
   function toggleDarkMode() {
     setDarkMode(!darkMode)
@@ -265,6 +266,19 @@ export default function Sidebar() {
               <div className="font-bold text-sm text-sidebar-foreground">SERVICE BOX</div>
               <div className="text-xs text-sidebar-foreground/60 truncate">{session?.user?.name}</div>
             </div>
+            <div className="relative w-6 h-6 shrink-0">
+              <div className="w-full h-full rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-foreground/80 text-[9px] font-bold">
+                {userInitials}
+              </div>
+              {session?.user?.image && (
+                <img
+                  src={session.user.image}
+                  alt=""
+                  className="absolute inset-0 w-full h-full rounded-full object-cover"
+                  onError={e => { e.currentTarget.style.display = 'none' }}
+                />
+              )}
+            </div>
             <button
               onClick={() => setCollapsed(true)}
               className="text-sidebar-foreground/50 hover:text-sidebar-foreground p-1 rounded"
@@ -296,6 +310,19 @@ export default function Sidebar() {
               <div className="flex-1 min-w-0">
                 <div className="font-bold text-sm text-sidebar-foreground">SERVICE BOX</div>
                 <div className="text-xs text-sidebar-foreground/60 truncate">{session?.user?.name}</div>
+              </div>
+              <div className="relative w-6 h-6 shrink-0">
+                <div className="w-full h-full rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-foreground/80 text-[9px] font-bold">
+                  {userInitials}
+                </div>
+                {session?.user?.image && (
+                  <img
+                    src={session.user.image}
+                    alt=""
+                    className="absolute inset-0 w-full h-full rounded-full object-cover"
+                    onError={e => { e.currentTarget.style.display = 'none' }}
+                  />
+                )}
               </div>
               <button
                 onClick={() => setMobileOpen(false)}

@@ -58,16 +58,17 @@ export default function MessageBubble({ msg, prevMsg, currentUserId, compact, on
 
   return (
     <div className={cn('flex gap-1 items-end group', isOwn && 'flex-row-reverse')}>
-      {/* Avatar — only for other users */}
-      {!isOwn && (
-        <div className={cn(
-          'rounded-full flex items-center justify-center font-semibold shrink-0 mt-0.5 bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300',
-          compact ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
-          !showName && 'opacity-0 pointer-events-none'
-        )}>
-          {getInitials(msg.userName)}
-        </div>
-      )}
+      {/* Avatar */}
+      <div className={cn(
+        'rounded-full flex items-center justify-center font-semibold shrink-0 mt-0.5',
+        isOwn
+          ? 'bg-blue-600 text-white'
+          : 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300',
+        compact ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
+        !showName && 'opacity-0 pointer-events-none'
+      )}>
+        {getInitials(msg.userName)}
+      </div>
 
       {/* Reply button: hidden by default, appears on hover (desktop) or always faintly on mobile */}
       {onReply && (

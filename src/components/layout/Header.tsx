@@ -4,7 +4,7 @@ import { useSession } from 'next-auth/react'
 import { useQuery } from '@tanstack/react-query'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Search, Bell, Plus, User, Menu } from 'lucide-react'
+import { Search, Bell, Plus, Menu } from 'lucide-react'
 import { useSidebar } from '@/lib/sidebar-context'
 
 const PAGE_TITLES: Record<string, string> = {
@@ -94,6 +94,7 @@ export default function Header() {
   const searchClients = (searchResults?.clients ?? []) as Array<{ _id: string; name: string; phone?: string; totalOrders: number }>
 
   const title = Object.entries(PAGE_TITLES).find(([key]) => pathname.startsWith(key))?.[1] ?? 'CRM'
+  const userInitials = (session?.user?.name ?? 'U').trim().split(/\s+/).map((w: string) => w[0]).join('').toUpperCase().slice(0, 2) || 'U'
 
   return (
     <header className="h-14 border-b bg-background/95 backdrop-blur-sm flex items-center gap-4 px-4 shrink-0">
@@ -202,8 +203,18 @@ export default function Header() {
 
       {/* User */}
       <Link href="/settings/profile" className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-accent transition">
-        <div className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center">
-          <User className="w-4 h-4 text-white" />
+        <div className="relative w-7 h-7 shrink-0">
+          <div className="w-full h-full rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-bold">
+            {userInitials}
+          </div>
+          {session?.user?.image && (
+            <img
+              src={session.user.image}
+              alt=""
+              className="absolute inset-0 w-full h-full rounded-full object-cover"
+              onError={e => { e.currentTarget.style.display = 'none' }}
+            />
+          )}
         </div>
         <span className="text-sm font-medium hidden lg:block">{session?.user?.name}</span>
       </Link>
