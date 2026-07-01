@@ -31,36 +31,8 @@ const DOC_TYPES = [
   { type: 'label', label: 'Этикетка 40×30', icon: Tag },
 ]
 
-// Injected into <head> while modal is open.
-// Portal (#crm-print-portal) is a direct child of <body>, so its ID selector
-// (specificity 1,0,0) overrides "body > *" (specificity 0,0,2) and stays visible.
-const PRINT_CSS = `
-@media print {
-  body > * { display: none !important; }
-  #crm-print-portal {
-    display: block !important;
-    position: absolute !important;
-    top: 0 !important; left: 0 !important;
-    width: 100% !important;
-    overflow: visible !important;
-    background: white !important;
-  }
-  #crm-print-toolbar { display: none !important; }
-  #crm-print-scroll {
-    overflow: visible !important;
-    height: auto !important;
-    background: white !important;
-    padding: 0 !important;
-  }
-  #crm-print-sheet {
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    max-width: none !important;
-    margin: 0 !important;
-  }
-  @page { margin: 10mm; }
-}
-`
+// Print isolation CSS lives in globals.css (body:has(#crm-print-portal) rules).
+// No dynamic injection needed — static CSS is more reliable.
 
 // ---------- types ----------
 
@@ -500,18 +472,11 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
   // Hydration guard — portal requires browser DOM
   useEffect(() => { setMounted(true) }, [])
 
-  // Inject print isolation CSS into <head> while modal is open
+  // Lock body scroll while modal is open
   useEffect(() => {
     if (!isOpen) return
-    const el = document.createElement('style')
-    el.id = 'crm-print-style'
-    el.textContent = PRINT_CSS
-    document.head.appendChild(el)
     document.body.style.overflow = 'hidden'
-    return () => {
-      document.getElementById('crm-print-style')?.remove()
-      document.body.style.overflow = ''
-    }
+    return () => { document.body.style.overflow = '' }
   }, [isOpen])
 
   // Sync doc type when modal opens from different entry points
