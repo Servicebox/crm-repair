@@ -3,10 +3,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
-import { Send, Loader2, Globe, Lock, MessageCircle, AlertCircle, X } from 'lucide-react'
+import { Send, Loader2, Globe, Lock, MessageCircle, AlertCircle, X, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import MessageBubble, { type Message } from '@/components/chat/MessageBubble'
 import RoomList from '@/components/chat/RoomList'
+import { useChatSounds } from '@/hooks/useChatSounds'
 
 interface ChatRoom {
   _id: string
@@ -30,6 +31,11 @@ export default function ChatPage() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const isPrivileged = session?.user?.role === 'owner' || session?.user?.role === 'admin'
+  const { isMuted, toggleMute, playSend, playReceived } = useChatSounds()
+
+  // Track seen message IDs to play sound only for genuinely new incoming messages
+  const seenMsgIdsRef = useRef<Set<string>>(new Set())
+  const isInitialLoadRef = useRef(true)
 
   const { data: messages, isLoading } = useQuery({
     queryKey: ['chat', activeRoom],
@@ -85,6 +91,9 @@ export default function ChatPage() {
     setReplyTo(null)
     setSendError(null)
     setShowSidebar(false)
+    // Reset seen IDs for new room so initial load doesn't play sounds
+    seenMsgIdsRef.current = new Set()
+    isInitialLoadRef.current = true
     setTimeout(() => {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
       inputRef.current?.focus()
@@ -94,6 +103,21 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Play received sound when new messages from others arrive
+  useEffect(() => {
+    if (!messages || !session?.user?.id) return
+    if (isInitialLoadRef.current) {
+      messages.forEach(m => seenMsgIdsRef.current.add(m._id))
+      isInitialLoadRef.current = false
+      return
+    }
+    const hasNew = messages.some(
+      m => !seenMsgIdsRef.current.has(m._id) && m.userId !== session.user!.id
+    )
+    messages.forEach(m => seenMsgIdsRef.current.add(m._id))
+    if (hasNew) playReceived()
+  }, [messages, session?.user?.id, playReceived])
 
   const handleReply = useCallback((msg: Message) => {
     setReplyTo(msg)
@@ -135,6 +159,7 @@ export default function ChatPage() {
       })
       setText('')
       setReplyTo(null)
+      playSend()
       inputRef.current?.focus()
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'Ошибка отправки')
@@ -197,6 +222,18 @@ export default function ChatPage() {
               {currentRoom?.scope === 'global' ? 'Общий · виден всем' : 'Внутренний · только для команды'}
             </p>
           </div>
+          {/* Mute toggle */}
+          <button
+            onClick={toggleMute}
+            className="p-1.5 hover:bg-accent rounded-lg transition"
+            title={isMuted ? 'Включить звук' : 'Выключить звук'}
+            aria-label={isMuted ? 'Включить звук' : 'Выключить звук'}
+          >
+            {isMuted
+              ? <VolumeX className="w-4 h-4 text-muted-foreground/50" />
+              : <Volume2 className="w-4 h-4 text-muted-foreground" />
+            }
+          </button>
           {/* Rooms button for desktop */}
           <button
             onClick={() => setShowSidebar(v => !v)}

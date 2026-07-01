@@ -15,6 +15,7 @@ import {
 import { useSession } from 'next-auth/react'
 import { StatusBadge, PriorityBadge } from '@/components/orders/OrderBadge'
 import { formatDateTime, formatDate, formatCurrency } from '@/lib/utils'
+import { calcFlexEarnings, type FlexSalary } from '@/lib/salary'
 import { ORDER_STATUSES } from '@/constants/orders'
 import WorkModal from '@/components/orders/WorkModal'
 import PartModal from '@/components/orders/PartModal'
@@ -1193,6 +1194,18 @@ export default function OrderDetailPage() {
             const earnings = calcMasterEarnings(master.salary, revenue, profit, totalMinutes)
 
             const isFlexSalary = Array.isArray(master.salary.rules)
+            const flexBreakdown = isFlexSalary
+              ? calcFlexEarnings(
+                  master.salary as unknown as FlexSalary,
+                  [{
+                    works: (order.works ?? []) as { price: number; discount?: number; cost?: number; category?: string }[],
+                    parts: (order.parts ?? []) as { price: number; quantity: number; cost?: number }[],
+                    isIntake: false,
+                  }],
+                  { shiftsCount: 0, hoursWorked: 0 }
+                )
+              : null
+            const totalEarnings = earnings ?? flexBreakdown?.total ?? null
             const salaryLabel: Record<string, string> = {
               percent_revenue: `${master.salary.value}% от выручки`,
               percent_profit: `${master.salary.value}% от прибыли`,
@@ -1249,17 +1262,25 @@ export default function OrderDetailPage() {
                       <span>{Math.round(totalMinutes / 6) / 10} ч</span>
                     </div>
                   )}
+                  {isFlexSalary && flexBreakdown && flexBreakdown.byRule.length > 0 && (
+                    <div className="bg-muted/40 rounded-lg px-3 py-2 space-y-1">
+                      {flexBreakdown.byRule.map(r => (
+                        <div key={r.ruleId} className="flex justify-between text-xs text-muted-foreground">
+                          <span>{r.label}</span>
+                          <span>+{formatCurrency(r.amount)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="border-t pt-2 flex justify-between items-center">
                     <span className="font-medium">Заработает с заказа</span>
-                    {earnings !== null ? (
-                      <span className="font-bold text-green-600 text-base">{formatCurrency(earnings)}</span>
-                    ) : isFlexSalary ? (
-                      <span className="text-xs text-muted-foreground">Учитывается в ведомости</span>
+                    {totalEarnings !== null ? (
+                      <span className="font-bold text-green-600 text-base">{formatCurrency(totalEarnings)}</span>
                     ) : (
                       <span className="text-xs text-muted-foreground">Зависит от оклада</span>
                     )}
                   </div>
-                  {earnings !== null && master.salary.guaranteed && earnings < master.salary.guaranteed && (
+                  {totalEarnings !== null && master.salary.guaranteed && totalEarnings < master.salary.guaranteed && (
                     <div className="text-xs text-amber-600 bg-amber-50 rounded-lg px-2.5 py-1.5">
                       Ниже гарантированного минимума {formatCurrency(master.salary.guaranteed)} — минимум будет начислен
                     </div>

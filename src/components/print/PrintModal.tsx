@@ -213,7 +213,6 @@ function DocumentContent({
     const wShowLogo = wtpl.showLogo !== false
     const wShowRequisites = wtpl.showRequisites !== false
     const wShowParts = wtpl.showParts !== false
-    const wShowQr = wtpl.showQr !== false
     const worksTotal = ((order.works as { price: number; discount?: number }[]) ?? []).reduce((s, w) => s + w.price - (w.discount ?? 0), 0)
     const partsTotal = ((order.parts as { price: number; quantity: number }[]) ?? []).reduce((s, p) => s + p.price * p.quantity, 0)
     const totalPaidW = ((order.payments as { amount: number }[]) ?? []).reduce((s, p) => s + p.amount, 0)
@@ -316,7 +315,7 @@ function DocumentContent({
           <div className="pdivider" />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12 }}>
             <div>
-              <div>Исполнитель: {((order.masterName ?? order.receivedByName) ?? '_______________________') as string}</div>
+              <div>Исполнитель: {(company.name as string) ?? '_______________________'}</div>
               <div style={{ marginTop: 24 }}>Подпись: _______________________</div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -325,16 +324,6 @@ function DocumentContent({
             </div>
           </div>
           {wtpl.signatureNote && <div style={{ fontSize: 10, color: '#666', marginTop: 6 }}>{wtpl.signatureNote as string}</div>}
-          {wShowQr && qrDataUrl && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 14, borderTop: '1px dashed #ccc', paddingTop: 10 }}>
-              <img src={qrDataUrl} style={{ width: 60, height: 60 }} alt="QR" />
-              <div style={{ fontSize: 10, color: '#555' }}>
-                <div>Отслеживайте статус заказа онлайн:</div>
-                <div>{trackUrl}</div>
-                <div style={{ marginTop: 4 }}>Заказ выдан: {formatDate((order.issuedAt ?? new Date()) as string)}</div>
-              </div>
-            </div>
-          )}
           {reviewQrDataUrl && (
             <div style={{ marginTop: 14, borderTop: '1px dashed #ccc', paddingTop: 12, textAlign: 'center' }}>
               <div style={{ fontSize: 11, fontWeight: 'bold', color: '#333', marginBottom: 4 }}>Понравился сервис? Оставьте отзыв!</div>
@@ -625,7 +614,6 @@ export default function PrintModal({ orderId: _orderId, order, isOpen, onClose, 
           )}
         </div>
         <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 11, marginTop: 12 }}>
-          Нажмите «Печать» или Ctrl+P · Esc — закрыть · Кликните за пределами листа — закрыть
         </div>
       </div>
     </div>,

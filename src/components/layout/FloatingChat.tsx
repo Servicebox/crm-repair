@@ -1,20 +1,12 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useSession } from 'next-auth/react'
 import { usePathname } from 'next/navigation'
-import { MessageCircle, X, Send, Loader2, ChevronDown, AlertCircle } from 'lucide-react'
+import { MessageCircle, X, Send, Loader2, ChevronDown, AlertCircle, Reply, Volume2, VolumeX } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import MessageBubble from '@/components/chat/MessageBubble'
-
-interface Message {
-  _id: string
-  userId: string
-  userName: string
-  companyName?: string | null
-  text: string
-  createdAt: string
-}
+import MessageBubble, { type Message } from '@/components/chat/MessageBubble'
+import { useChatSounds } from '@/hooks/useChatSounds'
 
 // FloatingChat uses the INTERNAL room — exclusive to org employees
 const ROOM = 'internal'
@@ -27,10 +19,17 @@ export default function FloatingChat() {
   const [sendError, setSendError] = useState<string | null>(null)
   const [unread, setUnread] = useState(0)
   const [lastSeenCount, setLastSeenCount] = useState(0)
+  const [replyTo, setReplyTo] = useState<Message | null>(null)
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  // Track seen message IDs to detect incoming messages for sound
+  const seenMsgIdsRef = useRef<Set<string>>(new Set())
+  const isInitialLoadRef = useRef(true)
+
+  const { isMuted, toggleMute, playSend, playReceived } = useChatSounds()
 
   // All hooks must be called before any conditional return
   const isOnChatPage = pathname === '/chat'
@@ -65,6 +64,21 @@ export default function FloatingChat() {
     return () => es.close()
   }, [isOnChatPage, queryClient])
 
+  // Play sound when new messages from others arrive (SSE or polling)
+  useEffect(() => {
+    if (!messages || !session?.user?.id) return
+    if (isInitialLoadRef.current) {
+      messages.forEach(m => seenMsgIdsRef.current.add(m._id))
+      isInitialLoadRef.current = false
+      return
+    }
+    const hasNew = messages.some(
+      m => !seenMsgIdsRef.current.has(m._id) && m.userId !== session.user!.id
+    )
+    messages.forEach(m => seenMsgIdsRef.current.add(m._id))
+    if (hasNew) playReceived()
+  }, [messages, session?.user?.id, playReceived])
+
   useEffect(() => {
     if (!messages) return
     if (open) {
@@ -89,17 +103,33 @@ export default function FloatingChat() {
   // Don't render on the full /chat page
   if (isOnChatPage) return null
 
+  const handleReply = (msg: Message) => {
+    setReplyTo(msg)
+    inputRef.current?.focus()
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault()
     if (!text.trim() || sending) return
     const draft = text.trim()
+    const currentReply = replyTo
     setSending(true)
     setSendError(null)
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: draft, room: ROOM }),
+        body: JSON.stringify({
+          text: draft,
+          room: ROOM,
+          ...(currentReply ? {
+            replyTo: {
+              messageId: currentReply._id,
+              userName: currentReply.userName,
+              text: currentReply.text.slice(0, 500),
+            }
+          } : {}),
+        }),
       })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
@@ -112,6 +142,8 @@ export default function FloatingChat() {
         return [...prev, msg]
       })
       setText('')
+      setReplyTo(null)
+      playSend()
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     } catch (error) {
       setSendError(error instanceof Error ? error.message : 'Ошибка отправки')
@@ -142,6 +174,17 @@ export default function FloatingChat() {
               <div className="text-xs text-blue-200">Только для команды</div>
             </div>
             <button
+              onClick={toggleMute}
+              className="p-1 hover:bg-blue-700 rounded-lg transition"
+              aria-label={isMuted ? 'Включить звук' : 'Выключить звук'}
+              title={isMuted ? 'Включить звук' : 'Выключить звук'}
+            >
+              {isMuted
+                ? <VolumeX className="w-4 h-4 opacity-60" />
+                : <Volume2 className="w-4 h-4" />
+              }
+            </button>
+            <button
               onClick={() => setOpen(false)}
               className="p-1 hover:bg-blue-700 rounded-lg transition"
               aria-label="Свернуть чат"
@@ -165,6 +208,7 @@ export default function FloatingChat() {
                   prevMsg={msgs[i - 1]}
                   currentUserId={session?.user?.id ?? ''}
                   compact
+                  onReply={handleReply}
                 />
               ))
             )}
@@ -179,13 +223,31 @@ export default function FloatingChat() {
             </div>
           )}
 
+          {/* Reply preview bar */}
+          {replyTo && (
+            <div className="px-3 py-2 border-t bg-muted/40 flex items-center gap-2 shrink-0">
+              <Reply className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+              <div className="flex-1 min-w-0 border-l-2 border-blue-500 pl-2">
+                <div className="text-[11px] font-semibold text-blue-600 truncate">{replyTo.userName}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{replyTo.text}</div>
+              </div>
+              <button
+                onClick={() => setReplyTo(null)}
+                className="p-1 hover:bg-accent rounded transition shrink-0"
+                aria-label="Отменить ответ"
+              >
+                <X className="w-3.5 h-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          )}
+
           {/* Input */}
           <form onSubmit={handleSend} className="p-2.5 border-t flex gap-1.5 shrink-0">
             <input
               ref={inputRef}
               value={text}
               onChange={e => { setText(e.target.value); setSendError(null) }}
-              placeholder="Сообщение команде..."
+              placeholder={replyTo ? `Ответить ${replyTo.userName}...` : 'Сообщение команде...'}
               className="flex-1 px-3 py-2 text-sm border rounded-full outline-none focus:ring-2 focus:ring-blue-500 bg-background"
               maxLength={500}
             />
