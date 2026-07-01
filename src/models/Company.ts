@@ -67,6 +67,7 @@ export interface ICompany extends Document {
     telegramBot: boolean
   }
   telegramBotToken?: string
+  telegramWebhookSecret?: string
   vkGroupId?: string
   vkAccessToken?: string
   reviewUrl?: string
@@ -178,6 +179,7 @@ const CompanySchema = new Schema<ICompany>(
       telegramBot: { type: Boolean, default: false },
     },
     telegramBotToken: String,
+    telegramWebhookSecret: String,
     vkGroupId: String,
     vkAccessToken: String,
     reviewUrl: String,

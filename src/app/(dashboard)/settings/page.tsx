@@ -2,8 +2,8 @@
 import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Save, Loader2, Building2, Palette, Bell, Wrench, Shield } from 'lucide-react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { Save, Loader2, Building2, Palette, Bell, Wrench, Shield, Send, CheckCircle, XCircle, Users } from 'lucide-react'
 import { LogoUpload } from '@/components/ui/ImageUpload'
 
 type FieldProps = {
@@ -36,8 +36,155 @@ const TABS = [
   { key: 'branding', label: 'Брендинг', icon: Palette },
   { key: 'reception', label: 'Приёмка', icon: Wrench },
   { key: 'notifications', label: 'Уведомления', icon: Bell },
+  { key: 'telegram', label: 'Telegram', icon: Send },
   { key: 'security', label: 'Безопасность', icon: Shield },
 ]
+
+interface TelegramStatus {
+  hasToken: boolean
+  botUsername?: string
+  enabled: boolean
+  linkedCount: number
+}
+
+function TelegramTab() {
+  const queryClient = useQueryClient()
+  const [tokenInput, setTokenInput] = useState('')
+  const [msg, setMsg] = useState('')
+
+  const { data: tgStatus, isLoading } = useQuery<TelegramStatus>({
+    queryKey: ['settings-telegram'],
+    queryFn: async () => {
+      const res = await fetch('/api/settings/telegram')
+      const json = await res.json()
+      return json.data
+    },
+  })
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/settings/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: tokenInput.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Ошибка')
+      return json.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-telegram'] })
+      setTokenInput('')
+      setMsg('Бот подключён! Webhook зарегистрирован.')
+    },
+    onError: (e: Error) => setMsg(e.message),
+  })
+
+  const disconnect = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/settings/telegram', { method: 'DELETE' })
+      if (!res.ok) throw new Error('Ошибка отключения')
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings-telegram'] })
+      setMsg('Бот отключён.')
+    },
+  })
+
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-600" /></div>
+
+  return (
+    <div className="space-y-6">
+      <h2 className="font-semibold text-lg">Telegram-бот</h2>
+
+      {/* Status card */}
+      <div className={`rounded-xl border p-4 flex items-start gap-3 ${tgStatus?.hasToken ? 'bg-green-50 border-green-200' : 'bg-muted/30'}`}>
+        {tgStatus?.hasToken ? (
+          <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+        ) : (
+          <XCircle className="w-5 h-5 text-muted-foreground mt-0.5 shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          {tgStatus?.hasToken ? (
+            <>
+              <div className="font-medium text-green-800">
+                @{tgStatus.botUsername ?? 'бот подключён'}
+              </div>
+              <div className="text-sm text-green-700 mt-0.5 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5" />
+                {tgStatus.linkedCount} {tgStatus.linkedCount === 1 ? 'сотрудник привязан' : 'сотрудников привязано'}
+              </div>
+            </>
+          ) : (
+            <div className="text-muted-foreground text-sm">Бот не подключён. Уведомления через Telegram не отправляются.</div>
+          )}
+        </div>
+        {tgStatus?.hasToken && (
+          <button
+            type="button"
+            onClick={() => { if (confirm('Отключить Telegram-бота? Все привязки сотрудников будут удалены.')) disconnect.mutate() }}
+            disabled={disconnect.isPending}
+            className="text-xs text-red-600 hover:text-red-700 border border-red-200 rounded-lg px-2.5 py-1.5 shrink-0 transition hover:bg-red-50"
+          >
+            {disconnect.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Отключить'}
+          </button>
+        )}
+      </div>
+
+      {/* Connect form */}
+      {!tgStatus?.hasToken && (
+        <div className="space-y-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Токен бота</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Создайте бота через <span className="font-mono">@BotFather</span> → /newbot → скопируйте токен
+            </p>
+            <input
+              value={tokenInput}
+              onChange={e => setTokenInput(e.target.value)}
+              placeholder="123456789:ABCdefGHIjklMNOpqrSTUVwxyz"
+              className="w-full px-3 py-2 border rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => connect.mutate()}
+            disabled={connect.isPending || !tokenInput.trim()}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+          >
+            {connect.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            Подключить бота
+          </button>
+        </div>
+      )}
+
+      {msg && (
+        <div className="text-sm px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-blue-700">
+          {msg}
+        </div>
+      )}
+
+      {/* Instructions */}
+      <div className="bg-muted/30 rounded-xl p-4 space-y-2">
+        <div className="font-medium text-sm">Как привязать сотрудника</div>
+        <ol className="text-sm text-muted-foreground space-y-1 list-decimal list-inside">
+          <li>Откройте карточку сотрудника → кнопка «Привязать Telegram»</li>
+          <li>Выдайте сотруднику код (действует 24 часа)</li>
+          <li>Сотрудник отправляет боту: <span className="font-mono text-foreground">/link КОД</span></li>
+          <li>Готово — уведомления активны для этого сотрудника</li>
+        </ol>
+      </div>
+
+      <div className="bg-muted/30 rounded-xl p-4 space-y-1">
+        <div className="font-medium text-sm">Какие уведомления приходят</div>
+        <ul className="text-sm text-muted-foreground space-y-0.5 list-disc list-inside">
+          <li>Владельцы и администраторы: новые заказы, согласования клиентов</li>
+          <li>Мастера: назначение заказа, запросы от клиентов</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const { data: session } = useSession()
@@ -252,6 +399,8 @@ export default function SettingsPage() {
               ))}
             </div>
           )}
+
+          {tab === 'telegram' && <TelegramTab />}
 
           {tab === 'security' && (
             <div className="space-y-4">

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { connectToDatabase } from '@/lib/mongodb'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
+import { notifyStaff } from '@/lib/notify'
 
 const CreateOrderSchema = z.object({
   type: z.enum(['repair', 'service']).default('repair'),
@@ -206,6 +207,26 @@ export async function POST(req: NextRequest) {
       })
     } catch {
       // audit log is non-critical, don't fail the request
+    }
+
+    // Fire-and-forget: notify owners/admins via Telegram + email
+    notifyStaff(session!.user.companyId, session!.user.dbName, 'order_new', {
+      orderNumber: number,
+      clientName: data.clientName,
+      device: [data.deviceType, data.deviceBrand, data.deviceModel].filter(Boolean).join(' '),
+      defect: data.defectDescription.slice(0, 80),
+    })
+
+    // If master was assigned at creation, notify them too
+    if (data.masterId && data.masterName) {
+      notifyStaff(session!.user.companyId, session!.user.dbName, 'order_assigned', {
+        orderNumber: number,
+        clientName: data.clientName,
+        device: [data.deviceType, data.deviceBrand, data.deviceModel].filter(Boolean).join(' '),
+        defect: data.defectDescription.slice(0, 80),
+        masterName: data.masterName,
+        targetUserId: data.masterId,
+      })
     }
 
     return ok(order, 201)
