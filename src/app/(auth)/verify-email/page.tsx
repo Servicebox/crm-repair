@@ -218,8 +218,8 @@ function SetPasswordForm({ token, dbName }: { token: string; dbName: string | nu
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
-  const token = searchParams.get('token')
-  const dbName = searchParams.get('db')
+  const token = searchParams?.get('token')
+  const dbName = searchParams?.get('db')
 
   if (!token) {
     return (

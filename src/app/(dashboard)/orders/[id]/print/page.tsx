@@ -24,7 +24,7 @@ const CHECKLIST_ITEMS = [
 function PrintContent() {
   const { id } = useParams<{ id: string }>()
   const searchParams = useSearchParams()
-  const printType = searchParams.get('type') ?? 'receipt' // receipt | act | label
+  const printType = searchParams?.get('type') ?? 'receipt' // receipt | act | label
 
   const [qrDataUrl, setQrDataUrl] = useState('')
 
@@ -71,7 +71,7 @@ function PrintContent() {
     QRCode.toDataURL(trackUrl, { width: 100, margin: 0 }).then(setQrDataUrl)
   }, [orderData?.number, orderData?.trackToken])
 
-  const isPreview = searchParams.get('preview') === '1'
+  const isPreview = searchParams?.get('preview') === '1'
 
   useEffect(() => {
     if (orderData && companyData && !isPreview) {

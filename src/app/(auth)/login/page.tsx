@@ -8,7 +8,7 @@ import { Wrench, Eye, EyeOff, Loader2 } from 'lucide-react'
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const rawCallbackUrl = searchParams.get('callbackUrl') ?? '/dashboard'
+  const rawCallbackUrl = searchParams?.get('callbackUrl') ?? '/dashboard'
   const callbackUrl = rawCallbackUrl.startsWith('/') && !rawCallbackUrl.startsWith('//') ? rawCallbackUrl : '/dashboard'
 
   const [email, setEmail] = useState('')

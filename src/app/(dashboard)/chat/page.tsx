@@ -21,7 +21,7 @@ export default function ChatPage() {
   const { data: session } = useSession()
   const queryClient = useQueryClient()
   const searchParams = useSearchParams()
-  const [activeRoom, setActiveRoom] = useState(() => searchParams.get('room') ?? 'general')
+  const [activeRoom, setActiveRoom] = useState(() => searchParams?.get('room') ?? 'general')
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)

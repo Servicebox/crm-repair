@@ -7,7 +7,7 @@ import { Wrench, Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-rea
 function ResetForm() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const token = searchParams.get('token') ?? ''
+  const token = searchParams?.get('token') ?? ''
 
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
