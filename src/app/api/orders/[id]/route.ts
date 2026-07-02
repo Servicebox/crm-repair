@@ -2,6 +2,9 @@ import { NextRequest } from 'next/server'
 import { z } from 'zod'
 import mongoose from 'mongoose'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
+import { notifyStaff } from '@/lib/notify'
+import { fireWebhook } from '@/lib/outboundWebhook'
+import { ORDER_STATUSES } from '@/constants/orders'
 
 function isValidObjectId(id: string) {
   return mongoose.Types.ObjectId.isValid(id)
@@ -106,12 +109,17 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
     const body = await req.json()
 
+    // Track changes for post-save notifications
+    let statusChanged: string | null = null
+    let masterChangedId: string | null = null
+
     if (body.status && body.status !== order.status) {
       const parsed = UpdateStatusSchema.parse({
         status: body.status,
         comment: body.statusComment,
         paymentMethod: body.paymentMethod,
       })
+      statusChanged = parsed.status
       order.statusHistory.push({
         status: parsed.status,
         comment: parsed.comment,
@@ -186,7 +194,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     for (const key of simpleStrings) {
       if (updates[key] !== undefined) (order as unknown as Record<string, unknown>)[key] = updates[key]
     }
-    if (updates.masterId !== undefined) { order.masterId = updates.masterId as unknown as mongoose.Types.ObjectId; if (updates.masterName) order.masterName = updates.masterName }
+    if (updates.masterId !== undefined) {
+      const prevMasterId = order.masterId?.toString()
+      order.masterId = updates.masterId as unknown as mongoose.Types.ObjectId
+      if (updates.masterName) order.masterName = updates.masterName
+      if (updates.masterId && updates.masterId !== prevMasterId) {
+        masterChangedId = updates.masterId
+      }
+    }
     if (updates.priority !== undefined) order.priority = updates.priority
     if (updates.works !== undefined) order.works = updates.works as typeof order.works
     if (updates.parts !== undefined) order.parts = updates.parts as typeof order.parts
@@ -205,6 +220,48 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (updates.approvalStatus !== undefined) order.approvalStatus = updates.approvalStatus
 
     await order.save()
+
+    // ── Post-save: Telegram notifications + outbound webhook ────────────────
+    const companyId = session!.user.companyId
+    const dbName = session!.user.dbName
+    const device = [order.deviceType, order.deviceBrand, order.deviceModel].filter(Boolean).join(' ')
+
+    if (statusChanged) {
+      const statusLabel = ORDER_STATUSES.find(s => s.value === statusChanged)?.label ?? statusChanged
+
+      if (statusChanged === 'ready') {
+        notifyStaff(companyId, dbName, 'order_ready', {
+          orderNumber: order.number,
+          clientName: order.clientName,
+          device,
+        })
+      } else {
+        notifyStaff(companyId, dbName, 'order_status', {
+          orderNumber: order.number,
+          status: statusLabel,
+        })
+      }
+
+      fireWebhook(companyId, 'order.status_changed', {
+        orderNumber: order.number,
+        status: statusChanged,
+        statusLabel,
+        clientName: order.clientName,
+        device,
+      })
+    }
+
+    if (masterChangedId) {
+      notifyStaff(companyId, dbName, 'order_assigned', {
+        orderNumber: order.number,
+        clientName: order.clientName,
+        device,
+        defect: order.defectDescription?.slice(0, 80),
+        targetUserId: masterChangedId,
+      })
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     return ok(order)
   } catch (error) {
     if (error instanceof z.ZodError) return err(error.errors[0].message)

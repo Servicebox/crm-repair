@@ -5,6 +5,7 @@ import { connectToDatabase } from '@/lib/mongodb'
 import { requireTenantAuth, ok, err } from '@/lib/api-helpers'
 import Company from '@/models/Company'
 import { notifyStaff } from '@/lib/notify'
+import { fireWebhook } from '@/lib/outboundWebhook'
 
 const CreateOrderSchema = z.object({
   type: z.enum(['repair', 'service']).default('repair'),
@@ -228,6 +229,14 @@ export async function POST(req: NextRequest) {
         targetUserId: data.masterId,
       })
     }
+
+    fireWebhook(session!.user.companyId, 'order.created', {
+      orderNumber: number,
+      clientName: data.clientName,
+      device: [data.deviceType, data.deviceBrand, data.deviceModel].filter(Boolean).join(' '),
+      defect: data.defectDescription.slice(0, 120),
+      masterName: data.masterName,
+    })
 
     return ok(order, 201)
   } catch (error) {

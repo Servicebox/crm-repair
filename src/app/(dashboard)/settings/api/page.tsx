@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import {
   Code2, Key, Copy, Check, RefreshCw, Download, Globe,
-  Webhook, FileJson, ChevronRight, Save, Loader2,
+  Webhook, FileJson, ChevronRight, Save, Loader2, Eye, EyeOff, Send, ShieldCheck,
 } from 'lucide-react'
 
 const TABS = [
@@ -67,6 +67,13 @@ export default function ApiSettingsPage() {
   const [fiscalSaved, setFiscalSaved] = useState(false)
   const [webhookUrl, setWebhookUrl] = useState('')
   const [webhookEvents, setWebhookEvents] = useState({ newOrder: true, statusChange: true, payment: false })
+  const [webhookSecret, setWebhookSecret] = useState('')
+  const [webhookShowSecret, setWebhookShowSecret] = useState(false)
+  const [webhookSaving, setWebhookSaving] = useState(false)
+  const [webhookSaved, setWebhookSaved] = useState(false)
+  const [webhookTesting, setWebhookTesting] = useState(false)
+  const [webhookTestResult, setWebhookTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const [webhookLoaded, setWebhookLoaded] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -80,6 +87,62 @@ export default function ApiSettingsPage() {
     }
     void load()
   }, [])
+
+  useEffect(() => {
+    async function loadWebhook() {
+      try {
+        const res = await fetch('/api/settings/webhook')
+        const json = await res.json() as { success: boolean; data: { url: string; hasSecret: boolean; events: typeof webhookEvents } }
+        if (json.success && json.data) {
+          setWebhookUrl(json.data.url ?? '')
+          setWebhookEvents(json.data.events)
+          if (json.data.hasSecret) setWebhookSecret('••••••••••••••••')
+        }
+        setWebhookLoaded(true)
+      } catch { setWebhookLoaded(true) }
+    }
+    void loadWebhook()
+  }, [])
+
+  async function saveWebhook() {
+    setWebhookSaving(true)
+    setWebhookTestResult(null)
+    try {
+      const res = await fetch('/api/settings/webhook', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl, events: webhookEvents }),
+      })
+      const json = await res.json() as { success: boolean; data?: { secret?: string } }
+      if (json.success) {
+        setWebhookSaved(true)
+        setTimeout(() => setWebhookSaved(false), 2500)
+      }
+    } catch { /* ignore */ } finally {
+      setWebhookSaving(false)
+    }
+  }
+
+  async function testWebhook() {
+    setWebhookTesting(true)
+    setWebhookTestResult(null)
+    try {
+      const res = await fetch('/api/settings/webhook', { method: 'PUT' })
+      const json = await res.json() as { success: boolean; data?: { statusCode: number; ok: boolean }; error?: string }
+      if (json.success && json.data) {
+        setWebhookTestResult({
+          ok: json.data.ok,
+          message: json.data.ok ? `Ответ ${json.data.statusCode} — успешно` : `Ответ ${json.data.statusCode} — сервер вернул ошибку`,
+        })
+      } else {
+        setWebhookTestResult({ ok: false, message: json.error ?? 'Ошибка подключения' })
+      }
+    } catch (e) {
+      setWebhookTestResult({ ok: false, message: e instanceof Error ? e.message : 'Ошибка' })
+    } finally {
+      setWebhookTesting(false)
+    }
+  }
 
   async function saveFiscal() {
     setFiscalSaving(true)
@@ -417,54 +480,123 @@ export default function ApiSettingsPage() {
 
           {/* Webhook tab */}
           {tab === 'webhook' && (
-            <>
-              <h2 className="font-semibold text-base">Webhook</h2>
-              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-sm text-amber-700 dark:text-amber-400">
-                <ChevronRight className="w-4 h-4 shrink-0" />
-                <span>Раздел в разработке — будет доступен в следующей версии.</span>
+            <div className="space-y-5">
+              <div>
+                <h2 className="font-semibold text-base">Webhook — исходящие уведомления</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  CRM отправляет POST-запросы на ваш URL при наступлении событий. Подпись в заголовке <code className="bg-muted px-1 rounded font-mono">X-Webhook-Signature</code>.
+                </p>
               </div>
-              <div className="space-y-4 opacity-50 pointer-events-none">
-                <div>
-                  <label className="block text-sm font-medium mb-1">URL для уведомлений</label>
-                  <input
-                    type="url"
-                    value={webhookUrl}
-                    onChange={(e) => setWebhookUrl(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-sm"
-                    placeholder="https://yourdomain.ru/webhook"
-                  />
-                </div>
-                <div>
-                  <p className="text-sm font-medium mb-2">События для отправки:</p>
-                  <div className="space-y-2">
-                    {(
-                      [
-                        ['newOrder', 'Новый заказ'],
-                        ['statusChange', 'Смена статуса'],
-                        ['payment', 'Оплата'],
-                      ] as [keyof typeof webhookEvents, string][]
-                    ).map(([key, label]) => (
-                      <label key={key} className="flex items-center gap-2 text-sm cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={webhookEvents[key]}
-                          onChange={(e) => setWebhookEvents((p) => ({ ...p, [key]: e.target.checked }))}
-                          className="rounded"
-                        />
-                        {label}
-                      </label>
-                    ))}
+
+              {!webhookLoaded ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-blue-600" /></div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">URL для уведомлений</label>
+                    <input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={(e) => setWebhookUrl(e.target.value)}
+                      className="w-full px-3 py-2 border rounded-lg text-sm bg-background text-foreground outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="https://yourdomain.ru/webhook"
+                    />
                   </div>
-                </div>
-                <button
-                  disabled
-                  className="flex items-center gap-2 bg-muted text-muted-foreground text-sm font-medium px-4 py-2 rounded-lg cursor-not-allowed"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                  Отправить тестовый запрос
-                </button>
-              </div>
-            </>
+
+                  <div>
+                    <p className="text-sm font-medium mb-2">События для отправки:</p>
+                    <div className="space-y-2">
+                      {(
+                        [
+                          ['newOrder', 'Новый заказ', 'order.created'],
+                          ['statusChange', 'Смена статуса', 'order.status_changed'],
+                          ['payment', 'Оплата', 'payment.received'],
+                        ] as [keyof typeof webhookEvents, string, string][]
+                      ).map(([key, label, eventName]) => (
+                        <label key={key} className="flex items-center gap-3 text-sm cursor-pointer group">
+                          <input
+                            type="checkbox"
+                            checked={webhookEvents[key]}
+                            onChange={(e) => setWebhookEvents((p) => ({ ...p, [key]: e.target.checked }))}
+                            className="w-4 h-4 rounded border-border text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="flex-1">{label}</span>
+                          <code className="text-[11px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded">{eventName}</code>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Secret */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Секрет подписи (HMAC-SHA256)</label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center gap-2 px-3 py-2 bg-muted rounded-lg border font-mono text-sm">
+                        <ShieldCheck className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <span className="flex-1 text-xs">
+                          {webhookShowSecret ? webhookSecret : webhookSecret ? '••••••••••••••••' : 'Генерируется автоматически при сохранении'}
+                        </span>
+                      </div>
+                      {webhookSecret && (
+                        <button
+                          onClick={() => setWebhookShowSecret(v => !v)}
+                          className="p-2 border rounded-lg hover:bg-accent transition"
+                          title={webhookShowSecret ? 'Скрыть' : 'Показать'}
+                        >
+                          {webhookShowSecret ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Проверяйте подпись: <code className="bg-muted px-1 rounded font-mono">HMAC-SHA256(secret, body)</code>
+                    </p>
+                  </div>
+
+                  <div className="bg-muted/40 rounded-lg p-3 text-xs font-mono text-muted-foreground space-y-1">
+                    <div className="font-semibold text-foreground text-[11px] uppercase tracking-wide mb-2">Пример payload</div>
+                    <div>{`{`}</div>
+                    <div className="pl-4">{`"event": "order.status_changed",`}</div>
+                    <div className="pl-4">{`"timestamp": "2025-01-15T10:30:00.000Z",`}</div>
+                    <div className="pl-4">{`"data": { "orderNumber": "SB-000042", "status": "ready", ... }`}</div>
+                    <div>{`}`}</div>
+                  </div>
+
+                  {/* Test result */}
+                  {webhookTestResult && (
+                    <div className={`flex items-start gap-2 px-3 py-2.5 rounded-lg text-sm border ${
+                      webhookTestResult.ok
+                        ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-400'
+                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
+                    }`}>
+                      {webhookTestResult.ok
+                        ? <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                        : <ChevronRight className="w-4 h-4 shrink-0 mt-0.5" />}
+                      {webhookTestResult.message}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-2 border-t">
+                    <button
+                      onClick={() => void saveWebhook()}
+                      disabled={webhookSaving}
+                      className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-medium px-4 py-2 rounded-lg transition"
+                    >
+                      {webhookSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                      {webhookSaved ? 'Сохранено' : 'Сохранить'}
+                    </button>
+                    <button
+                      onClick={() => void testWebhook()}
+                      disabled={webhookTesting || !webhookUrl}
+                      className="flex items-center gap-2 border hover:bg-accent disabled:opacity-50 text-sm font-medium px-4 py-2 rounded-lg transition"
+                    >
+                      {webhookTesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Тестовый запрос
+                    </button>
+                    {webhookSaved && <span className="text-sm text-green-600 flex items-center gap-1"><Check className="w-4 h-4" /> Сохранено</span>}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
       </div>

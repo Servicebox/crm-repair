@@ -71,6 +71,15 @@ export interface ICompany extends Document {
   vkGroupId?: string
   vkAccessToken?: string
   reviewUrl?: string
+  outboundWebhook?: {
+    url?: string
+    secret?: string
+    events?: {
+      newOrder?: boolean
+      statusChange?: boolean
+      payment?: boolean
+    }
+  }
   receptionSettings?: unknown
   labelSettings?: unknown
   fiscalSettings?: unknown
@@ -183,6 +192,7 @@ const CompanySchema = new Schema<ICompany>(
     vkGroupId: String,
     vkAccessToken: String,
     reviewUrl: String,
+    outboundWebhook: { type: Schema.Types.Mixed, default: null },
     receptionSettings: { type: Schema.Types.Mixed, default: null },
     labelSettings: { type: Schema.Types.Mixed, default: null },
     fiscalSettings: { type: Schema.Types.Mixed, default: null },
