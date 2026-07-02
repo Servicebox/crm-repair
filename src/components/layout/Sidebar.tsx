@@ -267,7 +267,7 @@ export default function Sidebar() {
               <div className="text-xs text-sidebar-foreground/60 truncate">{session?.user?.name}</div>
             </div>
             <div className="relative w-6 h-6 shrink-0">
-              <div className="w-full h-full rounded-full bg-sidebar-accent flex items-center justify-center text-sidebar-foreground/80 text-[9px] font-bold">
+              <div className="w-full h-full rounded-full bg-white/20 flex items-center justify-center text-white text-[9px] font-bold">
                 {userInitials}
               </div>
               {session?.user?.image && (

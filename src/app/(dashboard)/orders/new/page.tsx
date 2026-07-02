@@ -850,7 +850,15 @@ export default function NewOrderPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs overflow-hidden animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-300">
 
             {/* Success header */}
-            <div className="px-6 pt-6 pb-4 text-center" style={{ background: 'linear-gradient(160deg, #f0fdf4 0%, #ffffff 60%)' }}>
+            <div className="px-6 pt-6 pb-4 text-center relative" style={{ background: 'linear-gradient(160deg, #f0fdf4 0%, #ffffff 60%)' }}>
+              <button
+                type="button"
+                onClick={() => setCreatedOrder(null)}
+                className="absolute top-3 right-3 p-1 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+                aria-label="Закрыть"
+              >
+                <X className="w-4 h-4" />
+              </button>
               <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-3 ring-4 ring-emerald-50">
                 <CheckCircle className="w-7 h-7 text-emerald-600" />
               </div>

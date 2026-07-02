@@ -58,14 +58,14 @@ export default function MessageBubble({ msg, prevMsg, currentUserId, compact, on
 
   return (
     <div className={cn('flex gap-1 items-end group', isOwn && 'flex-row-reverse')}>
-      {/* Avatar */}
+      {/* Avatar — always reserve space; show initials only on first message in a run */}
       <div className={cn(
         'rounded-full flex items-center justify-center font-semibold shrink-0 mt-0.5',
         isOwn
           ? 'bg-blue-600 text-white'
           : 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300',
         compact ? 'w-7 h-7 text-[10px]' : 'w-8 h-8 text-xs',
-        !showName && 'opacity-0 pointer-events-none'
+        !showName && !isOwn && 'invisible'
       )}>
         {getInitials(msg.userName)}
       </div>

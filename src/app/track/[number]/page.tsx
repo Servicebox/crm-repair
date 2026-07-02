@@ -5,6 +5,7 @@ import { getModels } from '@/lib/models'
 import Order from '@/models/Order'
 import Company from '@/models/Company'
 import ApprovalButtons from '@/components/track/ApprovalButtons'
+import LogoImg from '@/components/track/LogoImg'
 
 const STATUS_LABELS: Record<string, string> = {
   new: 'Принят',
@@ -173,7 +174,7 @@ export default async function TrackPage({ params }: { params: { number: string }
         {order.company && (
           <div className="text-center mb-6 pt-4">
             {order.company.logo && (
-              <img src={order.company.logo} alt={order.company.name} className="h-10 mx-auto mb-2 object-contain" onError={e => { e.currentTarget.style.display = 'none' }} />
+              <LogoImg src={order.company.logo} alt={order.company.name} />
             )}
             <h2 className="font-bold text-slate-800">{order.company.name}</h2>
             {order.company.phone && <p className="text-sm text-slate-500">{order.company.phone}</p>}
