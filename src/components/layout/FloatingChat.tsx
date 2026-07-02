@@ -171,44 +171,47 @@ export default function FloatingChat() {
       {/* Chat window — rendered separately from button to avoid layout issues on small screens */}
       {open && (
         <div className={cn(
-          'fixed z-50 right-4 bg-white dark:bg-card border rounded-2xl shadow-2xl flex flex-col overflow-hidden',
+          'fixed z-50 right-4 flex flex-col overflow-hidden',
           'animate-in slide-in-from-bottom-4 duration-200',
-          // Responsive height: takes 80% of viewport on small screens, fixed on large
           'w-[calc(100vw-32px)] sm:w-80',
           'bottom-[76px]',
           'max-h-[calc(100svh-110px)]',
+          'rounded-2xl border border-white/10 shadow-2xl shadow-black/40',
+          'bg-slate-900/95 backdrop-blur-xl',
         )}>
           {/* Header */}
-          <div className="px-4 py-3 bg-blue-600 text-white flex items-center gap-2 shrink-0">
-            <MessageCircle className="w-4 h-4 shrink-0" />
+          <div className="px-4 py-3 flex items-center gap-2 shrink-0 border-b border-white/10 bg-gradient-to-r from-blue-600/20 to-slate-800/20">
+            <div className="w-7 h-7 rounded-full bg-blue-500/30 border border-blue-400/40 flex items-center justify-center shrink-0">
+              <MessageCircle className="w-3.5 h-3.5 text-blue-300" />
+            </div>
             <div className="flex-1 min-w-0">
-              <div className="font-semibold text-sm">Внутренний чат</div>
-              <div className="text-xs text-blue-200">Только для команды</div>
+              <div className="font-semibold text-sm text-white">Внутренний чат</div>
+              <div className="text-[10px] text-slate-400">Только для команды</div>
             </div>
             <button
               onClick={toggleMute}
-              className="p-1 hover:bg-blue-700 rounded-lg transition"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition text-slate-400 hover:text-white"
               aria-label={isMuted ? 'Включить звук' : 'Выключить звук'}
               title={isMuted ? 'Включить звук' : 'Выключить звук'}
             >
               {isMuted
-                ? <VolumeX className="w-4 h-4 opacity-60" />
-                : <Volume2 className="w-4 h-4" />
+                ? <VolumeX className="w-3.5 h-3.5" />
+                : <Volume2 className="w-3.5 h-3.5" />
               }
             </button>
             <button
               onClick={() => setOpen(false)}
-              className="p-1 hover:bg-blue-700 rounded-lg transition"
+              className="p-1.5 hover:bg-white/10 rounded-lg transition text-slate-400 hover:text-white"
               aria-label="Свернуть чат"
             >
-              <ChevronDown className="w-4 h-4" />
+              <ChevronDown className="w-3.5 h-3.5" />
             </button>
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 overscroll-contain">
+          <div className="flex-1 overflow-y-auto p-3 space-y-2 overscroll-contain scrollbar-thin">
             {msgs.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
+              <div className="text-center py-8 text-slate-500 text-sm">
                 <MessageCircle className="w-8 h-8 mx-auto mb-2 opacity-20" />
                 Сообщений пока нет
               </div>
@@ -229,7 +232,7 @@ export default function FloatingChat() {
 
           {/* Error */}
           {sendError && (
-            <div className="px-3 py-1.5 bg-red-50 dark:bg-red-950 border-t border-red-200 dark:border-red-800 flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400 shrink-0">
+            <div className="px-3 py-1.5 bg-red-950/60 border-t border-red-800/50 flex items-center gap-1.5 text-xs text-red-400 shrink-0">
               <AlertCircle className="w-3 h-3 shrink-0" />
               {sendError}
             </div>
@@ -237,36 +240,36 @@ export default function FloatingChat() {
 
           {/* Reply preview bar */}
           {replyTo && (
-            <div className="px-3 py-2 border-t bg-muted/40 flex items-center gap-2 shrink-0">
-              <Reply className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+            <div className="px-3 py-2 border-t border-white/10 bg-white/5 flex items-center gap-2 shrink-0">
+              <Reply className="w-3.5 h-3.5 text-blue-400 shrink-0" />
               <div className="flex-1 min-w-0 border-l-2 border-blue-500 pl-2">
-                <div className="text-[11px] font-semibold text-blue-600 truncate">{replyTo.userName}</div>
-                <div className="text-[11px] text-muted-foreground truncate">{replyTo.text}</div>
+                <div className="text-[11px] font-semibold text-blue-400 truncate">{replyTo.userName}</div>
+                <div className="text-[11px] text-slate-400 truncate">{replyTo.text}</div>
               </div>
               <button
                 onClick={() => setReplyTo(null)}
-                className="p-1 hover:bg-accent rounded transition shrink-0"
+                className="p-1 hover:bg-white/10 rounded transition shrink-0"
                 aria-label="Отменить ответ"
               >
-                <X className="w-3.5 h-3.5 text-muted-foreground" />
+                <X className="w-3.5 h-3.5 text-slate-400" />
               </button>
             </div>
           )}
 
           {/* Input */}
-          <form onSubmit={handleSend} className="p-2.5 border-t flex gap-1.5 shrink-0">
+          <form onSubmit={handleSend} className="p-2.5 border-t border-white/10 flex gap-1.5 shrink-0 bg-slate-950/30">
             <input
               ref={inputRef}
               value={text}
               onChange={e => { setText(e.target.value); setSendError(null) }}
-              placeholder={replyTo ? `Ответить ${replyTo.userName}...` : 'Сообщение команде...'}
-              className="flex-1 px-3 py-2 text-sm border rounded-full outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+              placeholder={replyTo ? `Ответить ${replyTo.userName}...` : 'Написать команде...'}
+              className="flex-1 px-3 py-2 text-sm rounded-full outline-none bg-white/8 border border-white/10 text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition"
               maxLength={500}
             />
             <button
               type="submit"
               disabled={!text.trim() || sending}
-              className="w-9 h-9 rounded-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 flex items-center justify-center text-white transition shrink-0"
+              className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-400 hover:to-blue-600 disabled:opacity-40 flex items-center justify-center text-white transition shadow-lg shadow-blue-600/30 shrink-0"
               aria-label="Отправить"
             >
               {sending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}

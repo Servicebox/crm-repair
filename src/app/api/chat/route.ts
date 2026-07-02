@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
       userName: senderName,
       companyId,
       companyName,
+      ...(session.user.image ? { userAvatar: session.user.image } : {}),
       text: data.text,
       ...(data.replyTo ? {
         replyTo: {
