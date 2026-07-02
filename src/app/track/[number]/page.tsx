@@ -156,15 +156,16 @@ export default async function TrackPage({ params }: { params: { number: string }
   const isDeclined = order.status === 'client_declined'
   const isIssued = order.status === 'issued'
 
-  // Build timeline from statusHistory (unique statuses in flow order)
+  // Effective status for timeline highlight: treat pending-approval as waiting_approval
+  const timelineActiveStatus = order.approvalStatus === 'pending' ? 'waiting_approval' : order.status
+  // Index of the active status in the flow — used to mark all preceding steps as done
+  const activeFlowIndex = STATUS_FLOW.indexOf(timelineActiveStatus)
+  // Statuses explicitly recorded in history (for out-of-order or skipped steps)
   const seenStatuses = new Set((order.history ?? []).map((h: { status: string }) => h.status))
   seenStatuses.add(order.status)
-  // If admin sent for approval, always highlight waiting_approval step in timeline
   if (order.approvalStatus === 'pending' || order.approvalStatus === 'approved' || order.approvalStatus === 'rejected') {
     seenStatuses.add('waiting_approval')
   }
-  // Effective status for timeline highlight: treat pending-approval as waiting_approval
-  const timelineActiveStatus = order.approvalStatus === 'pending' ? 'waiting_approval' : order.status
 
   return (
     <div className="min-h-screen bg-slate-50 p-4">
@@ -188,8 +189,11 @@ export default async function TrackPage({ params }: { params: { number: string }
             <div className="text-xs font-medium text-slate-500 mb-3">Ход ремонта</div>
             <div className="flex items-center gap-0">
               {STATUS_FLOW.map((s, i) => {
-                const done = seenStatuses.has(s) && s !== timelineActiveStatus
+                const stepIndex = STATUS_FLOW.indexOf(s)
                 const active = timelineActiveStatus === s
+                // A step is "done" if: it comes before the active status in the flow,
+                // OR it's explicitly in the history (handles out-of-order / skipped steps)
+                const done = !active && (stepIndex < activeFlowIndex || seenStatuses.has(s))
                 const Icon = STATUS_ICONS[s] ?? Clock
                 return (
                   <div key={s} className="flex items-center flex-1 min-w-0">
@@ -209,7 +213,7 @@ export default async function TrackPage({ params }: { params: { number: string }
                       </span>
                     </div>
                     {i < STATUS_FLOW.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-0.5 mb-4 ${done && !active ? 'bg-green-400' : 'bg-slate-200'}`} />
+                      <div className={`flex-1 h-0.5 mx-0.5 mb-4 ${done ? 'bg-green-400' : 'bg-slate-200'}`} />
                     )}
                   </div>
                 )

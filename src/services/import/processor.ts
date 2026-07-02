@@ -12,6 +12,37 @@ import { streamXml } from './parsers/xml'
 const BATCH_SIZE = 100
 const PROGRESS_FLUSH_EVERY = 50  // write progress to DB every N rows
 
+const VALID_STATUSES = new Set(['new', 'diagnostics', 'waiting_approval', 'waiting_parts', 'in_repair', 'quality_check', 'ready', 'issued', 'cancelled', 'client_declined'])
+
+// Map common status aliases from third-party CRMs to our status enum
+const STATUS_ALIAS: Record<string, string> = {
+  // Issued / completed
+  'выдан': 'issued', 'выдано': 'issued', 'закрыт': 'issued', 'закрыто': 'issued',
+  'done': 'issued', 'completed': 'issued', 'closed': 'issued', 'finished': 'issued',
+  // Ready
+  'готов': 'ready', 'готово': 'ready', 'готов к выдаче': 'ready', 'ready': 'ready',
+  // In repair
+  'в ремонте': 'in_repair', 'ремонт': 'in_repair', 'в работе': 'in_repair',
+  'in_work': 'in_repair', 'in work': 'in_repair', 'repair': 'in_repair', 'work': 'in_repair',
+  // Diagnostics
+  'диагностика': 'diagnostics', 'diagnostic': 'diagnostics',
+  // Waiting parts
+  'ожидание запчастей': 'waiting_parts', 'ожидание': 'waiting_parts', 'waiting': 'waiting_parts',
+  'ожидает запчасти': 'waiting_parts',
+  // Waiting approval
+  'согласование': 'waiting_approval', 'ожидает согласования': 'waiting_approval',
+  // Cancelled
+  'отменён': 'cancelled', 'отменен': 'cancelled', 'отказ': 'cancelled',
+  'canceled': 'cancelled', 'cancel': 'cancelled',
+}
+
+function normalizeOrderStatus(raw: string): string {
+  if (!raw) return 'new'
+  const lower = raw.trim().toLowerCase()
+  if (VALID_STATUSES.has(lower)) return lower
+  return STATUS_ALIAS[lower] ?? 'new'
+}
+
 // ── Row transformation ────────────────────────────────────────────────────────
 
 function transformRow(
@@ -163,21 +194,25 @@ async function upsertOrder(
       const suffix = `-${Date.now().toString(36)}`
       orderNumber = orderNumber + suffix
     } else {
+      const updatedStatus = order.status ? normalizeOrderStatus(String(order.status)) : undefined
       const updateData: Record<string, unknown> = {
         clientName,
         clientPhone: clientPhone ?? undefined,
         deviceType,
         defectDescription: defect,
-        status: order.status ?? undefined,
         finalCost: order.total_price ? Number(order.total_price) : undefined,
         masterName: order.master_name ?? undefined,
       }
+      if (updatedStatus) updateData.status = updatedStatus
       if (order.created_at) updateData.createdAt = new Date(String(order.created_at))
       if (order.completed_at) updateData.issuedAt = new Date(String(order.completed_at))
       await models.Order.updateOne({ _id: existing._id }, { $set: updateData })
       return 'updated'
     }
   }
+
+  const importedStatus = normalizeOrderStatus((order.status as string) || '')
+  const orderCreatedAt = order.created_at ? new Date(String(order.created_at)) : new Date()
 
   const orderData: Record<string, unknown> = {
     number: orderNumber,
@@ -187,15 +222,22 @@ async function upsertOrder(
     deviceType,
     defectDescription: defect,
     createdBy: createdByOid,
-    status: (order.status as string) || 'new',
+    status: importedStatus,
     finalCost: order.total_price ? Number(order.total_price) : 0,
+    statusHistory: [
+      {
+        status: importedStatus,
+        userName: 'Импорт',
+        createdAt: orderCreatedAt,
+      },
+    ],
   }
   if (order.device_brand) orderData.deviceBrand = String(order.device_brand)
   if (order.device_model) orderData.deviceModel = String(order.device_model)
   if (order.serial_number) orderData.deviceSerial = String(order.serial_number)
   if (order.master_name) orderData.masterName = String(order.master_name)
   if (order.notes) orderData.adminComment = String(order.notes)
-  if (order.created_at) orderData.createdAt = new Date(String(order.created_at))
+  orderData.createdAt = orderCreatedAt
   if (order.completed_at) orderData.issuedAt = new Date(String(order.completed_at))
 
   await models.Order.create(orderData)
