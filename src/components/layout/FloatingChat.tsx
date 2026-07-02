@@ -263,7 +263,7 @@ export default function FloatingChat() {
               value={text}
               onChange={e => { setText(e.target.value); setSendError(null) }}
               placeholder={replyTo ? `Ответить ${replyTo.userName}...` : 'Написать команде...'}
-              className="flex-1 px-3 py-2 text-sm rounded-full outline-none bg-white/8 border border-white/10 text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition"
+              className="flex-1 px-3 py-2 text-sm rounded-full outline-none bg-slate-800 border border-white/10 text-white placeholder:text-slate-500 focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 transition"
               maxLength={500}
             />
             <button

@@ -37,7 +37,7 @@ const PatchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
   phone: z.string().max(50).optional(),
   position: z.string().max(200).optional(),
-  avatar: z.string().url().max(500).optional(),
+  avatar: z.string().max(500).optional(),
 })
 
 export async function PATCH(req: NextRequest) {
