@@ -1,7 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useSession } from 'next-auth/react'
-import { Save, Loader2, User, Lock, Bell, Eye, EyeOff } from 'lucide-react'
+import { Save, Loader2, User, Lock, Bell, Eye, EyeOff, Camera } from 'lucide-react'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 
@@ -24,6 +24,9 @@ export default function ProfilePage() {
   const [email, setEmail] = useState(session?.user?.email ?? '')
   const [phone, setPhone] = useState('')
   const [position, setPosition] = useState('')
+  const [avatar, setAvatar] = useState(session?.user?.image ?? '')
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [oldPassword, setOldPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -35,6 +38,27 @@ export default function ProfilePage() {
   const [notifStatusChange, setNotifStatusChange] = useState(true)
   const [notifReady, setNotifReady] = useState(true)
 
+  async function handleAvatarSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true)
+    setError('')
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/upload?type=avatar', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error('Ошибка загрузки фото')
+      const json = await res.json()
+      const url: string = json.url ?? json.data?.url ?? ''
+      if (!url) throw new Error('Ошибка получения URL фото')
+      setAvatar(url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Ошибка загрузки фото')
+    } finally {
+      setAvatarUploading(false)
+    }
+  }
+
   async function saveProfile() {
     setSaving(true)
     setError('')
@@ -42,10 +66,10 @@ export default function ProfilePage() {
       const res = await fetch('/api/profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, phone, position }),
+        body: JSON.stringify({ name, phone, position, ...(avatar ? { avatar } : {}) }),
       })
       if (!res.ok) throw new Error((await res.json()).error ?? 'Ошибка')
-      await update({ name })
+      await update({ name, image: avatar || undefined })
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
     } catch (e) {
@@ -157,13 +181,50 @@ export default function ProfilePage() {
           {tab === 'profile' && (
             <div className="space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold shrink-0">
-                  {initials}
+                <div className="relative shrink-0 group">
+                  <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white text-xl font-bold">
+                    {initials}
+                  </div>
+                  {avatar && (
+                    <img
+                      src={avatar}
+                      alt="Аватар"
+                      className="absolute inset-0 w-16 h-16 rounded-full object-cover"
+                      onError={e => { e.currentTarget.style.display = 'none' }}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={avatarUploading}
+                    className="absolute inset-0 w-16 h-16 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Загрузить фото"
+                    aria-label="Загрузить фото профиля"
+                  >
+                    {avatarUploading
+                      ? <Loader2 className="w-5 h-5 text-white animate-spin" />
+                      : <Camera className="w-5 h-5 text-white" />
+                    }
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarSelect}
+                  />
                 </div>
                 <div>
                   <div className="font-semibold text-lg">{session?.user?.name}</div>
                   <div className="text-sm text-muted-foreground">{session?.user?.email}</div>
                   <div className="text-xs text-muted-foreground mt-0.5 capitalize">{session?.user?.role ?? 'Сотрудник'}</div>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="text-xs text-blue-600 hover:text-blue-700 mt-1"
+                  >
+                    Изменить фото
+                  </button>
                 </div>
               </div>
 
@@ -173,7 +234,7 @@ export default function ProfilePage() {
                   <input
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
                     placeholder="Иван Иванов"
                   />
                 </div>
@@ -191,7 +252,7 @@ export default function ProfilePage() {
                   <input
                     value={phone}
                     onChange={e => setPhone(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
                     placeholder="+7 999 000 00 00"
                   />
                 </div>
@@ -200,7 +261,7 @@ export default function ProfilePage() {
                   <input
                     value={position}
                     onChange={e => setPosition(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
                     placeholder="Мастер по ремонту"
                   />
                 </div>
@@ -223,7 +284,7 @@ export default function ProfilePage() {
                       type={show ? 'text' : 'password'}
                       value={value}
                       onChange={e => setter(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                      className="w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 pr-10 bg-background text-foreground"
                     />
                     {toggle !== (() => {}) && (
                       <button type="button" onClick={toggle} className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground">

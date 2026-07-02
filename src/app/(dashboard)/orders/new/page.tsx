@@ -330,7 +330,7 @@ export default function NewOrderPage() {
             type="datetime-local"
             value={acceptedAt}
             onChange={e => setAcceptedAt(e.target.value)}
-            className="px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="px-3 py-1.5 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
           />
         </div>
       </div>
@@ -353,7 +353,7 @@ export default function NewOrderPage() {
               <input
                 value={clientName}
                 onChange={e => { setClientName(e.target.value); setClientSelected(false) }}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                 placeholder="Иванов Иван Иванович"
                 required={orderType === 'repair'}
                 autoComplete="off"
@@ -367,7 +367,7 @@ export default function NewOrderPage() {
               <input
                 value={clientPhone}
                 onChange={e => { setClientPhone(formatPhone(e.target.value)); setClientSelected(false) }}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                 placeholder="+7 (999) 999-99-99"
                 autoComplete="off"
               />
@@ -381,7 +381,7 @@ export default function NewOrderPage() {
                 type="email"
                 value={clientEmail}
                 onChange={e => setClientEmail(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                 placeholder="client@example.com"
               />
             </div>
@@ -390,7 +390,7 @@ export default function NewOrderPage() {
               <select
                 value={source}
                 onChange={e => setSource(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               >
                 <option value="">Не указано</option>
                 {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -446,7 +446,7 @@ export default function NewOrderPage() {
                   <input
                     value={deviceColor}
                     onChange={e => setDeviceColor(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                     placeholder="Чёрный"
                   />
                 </div>
@@ -455,7 +455,7 @@ export default function NewOrderPage() {
                   <input
                     value={deviceSerial}
                     onChange={e => setDeviceSerial(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                     placeholder="F2L..., R58..."
                   />
                 </div>
@@ -464,7 +464,7 @@ export default function NewOrderPage() {
                   <input
                     value={deviceImei}
                     onChange={e => setDeviceImei(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                     placeholder="350..."
                   />
                 </div>
@@ -473,7 +473,7 @@ export default function NewOrderPage() {
                   <input
                     value={devicePassword}
                     onChange={e => setDevicePassword(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                     placeholder="Если нужен для диагностики"
                   />
                 </div>
@@ -488,7 +488,7 @@ export default function NewOrderPage() {
                 <textarea
                   value={deviceCondition}
                   onChange={e => setDeviceCondition(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                   rows={2}
                   placeholder="Царапины, сколы, трещины..."
                 />
@@ -511,7 +511,7 @@ export default function NewOrderPage() {
                 <input
                   value={deviceAccessories}
                   onChange={e => setDeviceAccessories(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                  className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                   placeholder="Чехол, зарядка, коробка..."
                 />
                 <div className="flex flex-wrap gap-1 mt-1">
@@ -563,7 +563,7 @@ export default function NewOrderPage() {
             <textarea
               value={defect}
               onChange={e => setDefect(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               rows={3}
               placeholder={orderType === 'repair'
                 ? 'Не включается, разбит экран, не заряжается...'
@@ -578,7 +578,7 @@ export default function NewOrderPage() {
               <select
                 value={priority}
                 onChange={e => setPriority(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               >
                 <option value="low">Низкий</option>
                 <option value="normal">Обычный</option>
@@ -591,7 +591,7 @@ export default function NewOrderPage() {
               <select
                 value={clientType}
                 onChange={e => setClientType(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               >
                 <option value="individual">Физлицо</option>
                 <option value="ip">ИП</option>
@@ -603,7 +603,7 @@ export default function NewOrderPage() {
               <select
                 value={masterId}
                 onChange={selectMaster}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               >
                 <option value="">Не назначен</option>
                 {(employees ?? []).filter((e: { role: string; isActive: boolean }) => e.role === 'master' && e.isActive).map((e: { _id: string; name: string }) => (
@@ -617,7 +617,7 @@ export default function NewOrderPage() {
                 type="date"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               />
             </div>
             <div>
@@ -626,7 +626,7 @@ export default function NewOrderPage() {
                 type="number"
                 value={warrantyDays}
                 onChange={e => setWarrantyDays(Number(e.target.value))}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                 min={0}
               />
             </div>
@@ -636,7 +636,7 @@ export default function NewOrderPage() {
                 type="number"
                 value={prepayment}
                 onChange={e => setPrepayment(Number(e.target.value))}
-                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
                 min={0}
               />
             </div>
@@ -647,7 +647,7 @@ export default function NewOrderPage() {
             <textarea
               value={adminComment}
               onChange={e => setAdminComment(e.target.value)}
-              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-background text-foreground"
               rows={2}
               placeholder="Дополнительная информация..."
             />

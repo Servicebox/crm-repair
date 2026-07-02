@@ -175,7 +175,7 @@ export default function FloatingChat() {
           'animate-in slide-in-from-bottom-4 duration-200',
           'w-[calc(100vw-32px)] sm:w-80',
           'bottom-[76px]',
-          'max-h-[calc(100svh-110px)]',
+          'max-h-[min(480px,calc(100svh-130px))]',
           'rounded-2xl border border-white/10 shadow-2xl shadow-black/40',
           'bg-slate-900/95 backdrop-blur-xl',
         )}>

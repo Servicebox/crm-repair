@@ -42,12 +42,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
 
         const dbUser = await userModel.findById(token.id)
-          .select('role companyId isActive permissions')
-          .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean; permissions?: Partial<IUserPermissions> } | null
+          .select('role companyId isActive permissions avatar')
+          .lean() as { role?: string; companyId?: { toString(): string }; isActive?: boolean; permissions?: Partial<IUserPermissions>; avatar?: string } | null
 
         if (!dbUser?.isActive) return session
 
         session.user.role = dbUser.role ?? ''
+        if (dbUser.avatar !== undefined) session.user.image = dbUser.avatar
         session.user.permissions = getEffectivePermissions({
           role: dbUser.role ?? 'master',
           permissions: dbUser.permissions,

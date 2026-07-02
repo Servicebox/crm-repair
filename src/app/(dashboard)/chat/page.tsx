@@ -312,7 +312,7 @@ export default function ChatPage() {
             value={text}
             onChange={e => { setText(e.target.value); setSendError(null) }}
             placeholder={replyTo ? `Ответить ${replyTo.userName}...` : 'Написать сообщение...'}
-            className="flex-1 px-4 py-2.5 border rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background"
+            className="flex-1 px-4 py-2.5 border rounded-full text-sm outline-none focus:ring-2 focus:ring-blue-500 bg-background text-foreground"
             maxLength={2000}
           />
           <button

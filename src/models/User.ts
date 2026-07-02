@@ -32,6 +32,7 @@ export interface IUser extends Document {
   companyId?: mongoose.Types.ObjectId
   locationId?: mongoose.Types.ObjectId
   phone?: string
+  position?: string
   avatar?: string
   isEmailVerified: boolean
   emailVerificationToken?: string
@@ -77,6 +78,7 @@ const UserSchema = new Schema<IUser>(
     companyId: { type: Schema.Types.ObjectId, ref: 'Company' },
     locationId: { type: Schema.Types.ObjectId, ref: 'Location' },
     phone: { type: String },
+    position: { type: String },
     avatar: { type: String },
     isEmailVerified: { type: Boolean, default: false },
     emailVerificationToken: { type: String },
